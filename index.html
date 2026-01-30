@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JustTrain</title>
+    
+    <!-- PWA Settings (Dynamic injection) -->
+    <link rel="manifest" id="manifest-link">
+    <link rel="icon" type="image/png" href="icon-32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="icon-192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="icon-180.png">
+    
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Notion連携型スマート時刻表アプリ">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Import Map for React modules -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+      }
+    }
+    </script>
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        input {
+            user-select: text;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Main Application Code -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Settings, RefreshCw, AlertCircle, Database, Clock, RotateCcw, Zap, CheckCircle, Info, X, Check, Save, Trash2, Building2, Train, ExternalLink, MessageCircle, Moon, Sun } from 'lucide-react';
+
+        // --- Constants & Config ---
+
+        const MODES = {
+          OFFICE: 'office',
+          STATION: 'station',
+        };
+
+        const STORAGE_KEYS = {
+          SECRET: 'timetable_secret',
+          DB_ID: 'timetable_db_id',
+          PROXY: 'timetable_proxy',
+          THEME: 'timetable_theme',
+        };
+
+        const LINE_COLORS = {
+          LIGHT: { mN: '#00ac9b', mI: '#0079c2', default: '#64748b' },
+          DARK:  { mN: '#5eead4', mI: '#93c5fd', default: '#cbd5e1' }
+        };
+
+        const NOTION_COLOR_MAP = {
+          default: 'slate', gray: 'slate', brown: 'amber', orange: 'orange',
+          yellow: 'yellow', green: 'emerald', blue: 'blue', purple: 'purple',
+          pink: 'pink', red: 'rose'
+        };
+
+        // --- Helper Functions ---
+
+        const getPropertyValue = (prop) => {
+          if (!prop) return '';
+          try {
+            if (prop.type === 'title' && prop.title) return prop.title[0]?.plain_text || '';
+            if (prop.type === 'rich_text' && prop.rich_text) return prop.rich_text[0]?.plain_text || '';
+            if (prop.type === 'select' && prop.select) return prop.select.name || '';
+            if (prop.type === 'date' && prop.date) return prop.date.start || '';
+            if (prop.type === 'number') return prop.number;
+            if (prop.type === 'url') return prop.url;
+            return '';
+          } catch (e) { return ''; }
+        };
+
+        const parseTimeStr = (timeStr, baseDate) => {
+          if (!timeStr) return null;
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          const date = new Date(baseDate);
+          date.setHours(hours, minutes, 0, 0);
+          if (date < baseDate && (baseDate.getHours() > 20 && hours < 4)) {
+             date.setDate(date.getDate() + 1);
+          }
+          return date;
+        };
+
+        const formatDestination = (destination) => {
+          if (!destination) return '';
+          return destination.replace(/^[^_]*_/, '').replace(/駅$/, '');
+        };
+
+        const getLineColor = (stationName, isDarkMode) => {
+          const colors = isDarkMode ? LINE_COLORS.DARK : LINE_COLORS.LIGHT;
+          if (!stationName) return colors.default;
+          if (stationName.startsWith('mN')) return colors.mN;
+          if (stationName.startsWith('mI')) return colors.mI;
+          return colors.default;
+        };
+
+        const getTailwindColor = (notionColor) => NOTION_COLOR_MAP[notionColor] || 'slate';
+
+        const hexToRgba = (hex, alpha) => {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
+        // --- Logic Hooks ---
+
+        const useTrainStyle = (item, isDarkMode) => {
+          const lineColor = getLineColor(item.departureStation, isDarkMode);
+          const isLowPriority = item.trainType && item.trainType.includes('/❌');
+          const typeColor = getTailwindColor(item.color);
+
+          const bgAlpha = isDarkMode ? 0.30 : 0.2;
+          const bgColor = hexToRgba(lineColor, bgAlpha);
+          
+          const stripeColor = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(100, 100, 100, 0.1)';
+          const backgroundStyle = {
+            backgroundColor: bgColor,
+            ...(isLowPriority && {
+              backgroundImage: `repeating-linear-gradient(-45deg, ${stripeColor}, ${stripeColor} 10px, transparent 10px, transparent 20px)`
+            })
+          };
+
+          const borderColor = isLowPriority 
+            ? (isDarkMode ? '#64748b' : '#94a3b8') 
+            : lineColor;
+
+          const accentTextColor = isLowPriority 
+            ? (isDarkMode ? '#e2e8f0' : '#1e293b') 
+            : lineColor;
+
+          const boxClass = isLowPriority 
+            ? (isDarkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-600 text-white border-slate-700')
+            : (isDarkMode 
+                ? `bg-${typeColor}-900/50 text-${typeColor}-100 border border-${typeColor}-700` 
+                : `bg-${typeColor}-100 text-${typeColor}-800 border border-${typeColor}-200`);
+
+          const departureBoxClass = isDarkMode
+            ? 'bg-slate-800 text-white border-slate-600'
+            : 'bg-white text-slate-800 border-slate-200';
+
+          const infoDepartureBoxClass = isDarkMode
+            ? 'bg-slate-800 text-white border border-slate-600'
+            : 'bg-white text-slate-800 border border-slate-200 shadow-sm';
+
+          return {
+            lineColor,
+            containerStyle: { ...backgroundStyle, borderLeft: `5px solid ${borderColor}` },
+            infoRowStyle: { ...backgroundStyle },
+            boxClass,
+            departureBoxClass,
+            infoDepartureBoxClass,
+            accentTextColor,
+            text: {
+              sub: isDarkMode ? 'text-slate-400' : 'text-slate-600',
+              dest: isDarkMode ? 'text-slate-200' : 'text-slate-700',
+              infoNumber: isLowPriority ? (isDarkMode ? '#e2e8f0' : '#1e293b') : (isDarkMode ? '#cbd5e1' : '#334155'),
+              badge: isDarkMode ? 'text-slate-300 bg-slate-800/80' : 'text-slate-500 bg-white/60',
+              comment: isDarkMode ? 'text-slate-400' : (isLowPriority ? 'text-slate-800' : 'text-slate-600'),
+              commentBorder: isDarkMode ? 'border-slate-700' : (isLowPriority ? 'border-slate-400/30' : 'border-slate-400/20'),
+            },
+            display: {
+              trainType: item.trainType ? item.trainType.replace('/❌', '') : '',
+              destination: formatDestination(item.destination)
+            }
+          };
+        };
+
+        const useNotionData = () => {
+          const [notionSecret, setNotionSecret] = useState(localStorage.getItem(STORAGE_KEYS.SECRET) || '');
+          const [databaseId, setDatabaseId] = useState(localStorage.getItem(STORAGE_KEYS.DB_ID) || '');
+          const [proxyUrl, setProxyUrl] = useState(localStorage.getItem(STORAGE_KEYS.PROXY) || 'https://cors-anywhere.herokuapp.com/');
+          
+          const [rawItems, setRawItems] = useState([]);
+          const [isLoading, setIsLoading] = useState(false);
+          const [error, setError] = useState(null);
+          const [showConfig, setShowConfig] = useState(!localStorage.getItem(STORAGE_KEYS.SECRET));
+
+          const fetchNotionData = useCallback(async () => {
+            if (!notionSecret || !databaseId) {
+              setError('APIキーとデータベースIDを入力してください。');
+              return;
+            }
+            setIsLoading(true);
+            setError(null);
+            const url = `${proxyUrl}https://api.notion.com/v1/databases/${databaseId}/query`;
+
+            try {
+              const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${notionSecret}`,
+                  'Notion-Version': '2022-06-28',
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                  page_size: 100,
+                  sorts: [{ property: '電車発車時刻', direction: 'ascending' }],
+                })
+              });
+
+              const textData = await response.text();
+              let data;
+              try {
+                data = JSON.parse(textData);
+              } catch (e) {
+                if (textData.includes('See /corsdemo')) throw new Error('CORS_DEMO_LIMIT');
+                throw new Error(`APIレスポンスが無効です: ${textData.substring(0, 50)}...`);
+              }
+
+              if (!response.ok) throw new Error(data.message || `エラーが発生しました: ${response.status}`);
+              
+              localStorage.setItem(STORAGE_KEYS.SECRET, notionSecret);
+              localStorage.setItem(STORAGE_KEYS.DB_ID, databaseId);
+              localStorage.setItem(STORAGE_KEYS.PROXY, proxyUrl);
+
+              const formattedData = data.results.map(page => {
+                const props = page.properties;
+                return {
+                  id: page.id,
+                  name: getPropertyValue(props['名前']),
+                  trainType: getPropertyValue(props['種別']),
+                  departureTimeStr: getPropertyValue(props['電車発車時刻']),
+                  destination: getPropertyValue(props['行先駅']),
+                  comment: getPropertyValue(props['コメント']),
+                  homeDepartureTime: getPropertyValue(props['出発時刻']),
+                  departureStation: getPropertyValue(props['出発駅']),
+                  arrivalStationTime: getPropertyValue(props['電車到着時刻']),
+                  type: getPropertyValue(props['Type']),
+                  color: props['種別']?.select?.color || 'gray'
+                };
+              }).filter(item => item.departureTimeStr && item.type === '退勤');
+
+              setRawItems(formattedData);
+              setShowConfig(false); 
+            } catch (err) {
+              if (err.message === 'CORS_DEMO_LIMIT') {
+                setError(
+                  <span>CORSプロキシの利用制限にかかりました。<br/><a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" rel="noreferrer" className="underline font-bold flex items-center gap-1 mt-1"><ExternalLink size={14}/> こちらのページを開き、</a>「Request temporary access」ボタンを押してから再試行してください。</span>
+                );
+              } else {
+                setError(err.message);
+              }
+            } finally {
+              setIsLoading(false);
+            }
+          }, [notionSecret, databaseId, proxyUrl]);
+
+          useEffect(() => {
+            if (localStorage.getItem(STORAGE_KEYS.SECRET)) fetchNotionData();
+          }, []);
+
+          const clearSettings = () => {
+            localStorage.removeItem(STORAGE_KEYS.SECRET);
+            localStorage.removeItem(STORAGE_KEYS.DB_ID);
+            localStorage.removeItem(STORAGE_KEYS.PROXY);
+            setNotionSecret(''); setDatabaseId(''); setError('設定をクリアしました。');
+          };
+
+          return { notionSecret, setNotionSecret, databaseId, setDatabaseId, proxyUrl, setProxyUrl, rawItems, isLoading, error, showConfig, setShowConfig, fetchNotionData, clearSettings };
+        };
+
+        const useTimeManager = () => {
+          const [currentTime, setCurrentTime] = useState(new Date()); 
+          const [targetTime, setTargetTime] = useState(new Date());   
+          const [isManualMode, setIsManualMode] = useState(false);
+
+          useEffect(() => {
+            const timer = setInterval(() => {
+              const now = new Date();
+              setCurrentTime(now);
+              if (!isManualMode) setTargetTime(now);
+            }, 1000);
+            return () => clearInterval(timer);
+          }, [isManualMode]);
+
+          const addMinutes = (minutes) => {
+            setIsManualMode(true);
+            setTargetTime(prev => {
+              const newTime = new Date(prev);
+              newTime.setMinutes(newTime.getMinutes() + minutes);
+              return newTime;
+            });
+          };
+
+          const resetTime = () => {
+            setIsManualMode(false);
+            setTargetTime(new Date());
+          };
+
+          const setManualTime = (date) => {
+            setIsManualMode(true);
+            setTargetTime(date);
+          };
+
+          return { targetTime, isManualMode, addMinutes, resetTime, setManualTime, getDisplayTime: () => ({ hours: String(targetTime.getHours()).padStart(2, '0'), minutes: String(targetTime.getMinutes()).padStart(2, '0') }) };
+        };
+
+        const useTrainCategorizer = (rawItems, targetTime, locationMode) => {
+          return useMemo(() => {
+            const officeCategories = { rush: [], normal: [], info: [] };
+            const stationCategories = { immediate: [], shortWait: [], longWait: [], info: [] };
+
+            rawItems.forEach(item => {
+              const trainDate = parseTimeStr(item.departureTimeStr, targetTime);
+              if (!trainDate) return;
+              
+              const diffMs = trainDate - targetTime;
+              const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+              if (locationMode === MODES.OFFICE) {
+                if (diffMinutes >= 10 && diffMinutes < 15) {
+                  officeCategories.rush.push({ ...item, diffMinutes });
+                } else if (diffMinutes >= 15 && diffMinutes < 30) {
+                  officeCategories.normal.push({ ...item, diffMinutes });
+                } else if (diffMinutes >= 30 && diffMinutes <= 60) {
+                  officeCategories.info.push({ ...item, diffMinutes });
+                }
+              } else {
+                if (diffMinutes >= 0 && diffMinutes <= 5) {
+                  stationCategories.immediate.push({ ...item, diffMinutes });
+                } else if (diffMinutes >= 6 && diffMinutes <= 15) {
+                  stationCategories.shortWait.push({ ...item, diffMinutes });
+                } else if (diffMinutes >= 16 && diffMinutes <= 30) {
+                  stationCategories.longWait.push({ ...item, diffMinutes });
+                } else if (diffMinutes >= 31 && diffMinutes <= 60) {
+                  stationCategories.info.push({ ...item, diffMinutes });
+                }
+              }
+            });
+
+            return { officeCategories, stationCategories };
+          }, [rawItems, targetTime, locationMode]);
+        };
+
+        // --- Components ---
+
+        const ConfigPanel = ({ notionSecret, setNotionSecret, databaseId, setDatabaseId, proxyUrl, setProxyUrl, fetchNotionData, isLoading, clearSettings }) => (
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700 mb-6 animate-in slide-in-from-top-2">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2"><Settings size={16} /> API 設定</h2>
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded mb-3 flex items-start gap-2"><Info size={16} className="shrink-0 mt-0.5" /> 一度正常に読み込まれると、設定はブラウザに保存され次回から自動入力されます。</div>
+            <div className="space-y-3">
+              <input type="password" value={notionSecret} onChange={(e) => setNotionSecret(e.target.value)} placeholder="Notion Secret" className="w-full p-2 border rounded text-sm dark:bg-slate-900 dark:border-slate-600 dark:text-white" />
+              <input type="text" value={databaseId} onChange={(e) => setDatabaseId(e.target.value)} placeholder="Database ID" className="w-full p-2 border rounded text-sm dark:bg-slate-900 dark:border-slate-600 dark:text-white" />
+              <input type="text" value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-900 dark:border-slate-600 dark:text-white" />
+              <div className="flex gap-2">
+                <button onClick={fetchNotionData} disabled={isLoading} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700">{isLoading ? <RefreshCw className="animate-spin" /> : <Save size={16} />} 保存して読み込み</button>
+                <button onClick={clearSettings} className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded hover:bg-red-50 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="設定をクリア"><Trash2 size={16} /></button>
+              </div>
+            </div>
+          </div>
+        );
+
+        const TimeControlButton = ({ minutes, onClick, isDarkMode }) => {
+          const isPlus = minutes > 0;
+          const absMinutes = Math.abs(minutes);
+          const isLarge = absMinutes === 5;
+          
+          const baseClasses = "px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all shadow-sm";
+          const lightClasses = isPlus 
+            ? (isLarge ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200" : "bg-blue-100 border border-blue-200 text-blue-700 hover:bg-blue-200")
+            : (isLarge ? "bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200" : "bg-rose-100 border border-rose-200 text-rose-700 hover:bg-rose-200");
+          
+          const darkClasses = isPlus
+            ? (isLarge ? "dark:bg-blue-800 dark:text-white dark:hover:bg-blue-700 dark:shadow-none" : "dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/50")
+            : (isLarge ? "dark:bg-rose-800 dark:text-white dark:hover:bg-rose-700 dark:shadow-none" : "dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/50");
+
+          const borderClass = isLarge ? "border border-transparent" : "";
+
+          return (
+            <button onClick={onClick} className={`${baseClasses} ${lightClasses} ${darkClasses} ${borderClass}`}>
+              {isPlus ? '+' : ''}{minutes}分
+            </button>
+          );
+        };
+
+        const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
+          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm">
+            <div className="max-w-md mx-auto p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                  <Train className="text-blue-600 dark:text-blue-400 w-6 h-6" />
+                  JustTrain
+                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v4.2.0</span>
+                </h1>
+                <div className="flex gap-2">
+                  <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                    {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                  </button>
+                  <button onClick={onConfigClick} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                    <Settings size={20} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}
+                  </span>
+                  {isManualMode && (
+                    <button onClick={onResetTime} className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline">
+                      <RotateCcw size={12} /> 現在時刻に戻す
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex items-center justify-between gap-4">
+                  <button onClick={onPickerClick} className="group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95">
+                    <Clock className={`w-8 h-8 ${isManualMode ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`} />
+                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'}`}>
+                      {displayTime.hours}:{displayTime.minutes}
+                    </span>
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[-1, 1, -5, 5].map((min) => (
+                      <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                  <button onClick={() => onLocationChange(MODES.OFFICE)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.OFFICE ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                    <Building2 size={16} /> オフィス (10-15分)
+                  </button>
+                  <button onClick={() => onLocationChange(MODES.STATION)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.STATION ? 'bg-white dark:bg-slate-600 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                    <Train size={16} /> 駅の近く
+                  </button>
+                </div>
+              </div>
+            </div>
+          </header>
+        );
+
+        const TrainCard = ({ item, badgeColor, badgeText, isDarkMode, locationMode, sectionType }) => {
+          const s = useTrainStyle(item, isDarkMode);
+          const isNormalSection = locationMode === MODES.OFFICE && sectionType === 'normal';
+          
+          return (
+            <div className="relative flex flex-col p-3 rounded-lg shadow-sm mb-2 transition-transform active:scale-[0.99]" style={s.containerStyle}>
+              <div className="flex items-center w-full">
+                <div className={`flex flex-col items-center justify-center w-16 h-14 rounded shadow-sm mr-2 shrink-0 ${s.boxClass}`}>
+                  <span className="text-[10px] font-bold leading-tight">{s.display.trainType}</span>
+                  <span className="text-lg font-bold leading-tight">{item.departureTimeStr}</span>
+                </div>
+
+                <div className="flex-1 flex items-center justify-between overflow-hidden">
+                  <div className="flex items-center gap-3">
+                     <div className="flex items-baseline shrink-0">
+                       <span className={`text-sm mr-1 ${s.text.sub}`}>あと</span>
+                       <span className={`${isNormalSection ? 'text-3xl' : 'text-3xl'} font-bold tracking-tight`} style={{ color: s.accentTextColor }}>{item.diffMinutes}</span>
+                       <span className={`text-sm ml-1 ${s.text.sub}`}>分</span>
+                     </div>
+                     
+                     {isNormalSection && item.homeDepartureTime && (
+                       <div className={`flex flex-col items-center justify-center h-14 px-2 rounded shadow-sm shrink-0 border ${s.departureBoxClass}`}>
+                         <div className="flex items-baseline">
+                           <span className="text-3xl font-bold tracking-tighter leading-none">{item.homeDepartureTime}</span>
+                           <span className="text-xs font-bold ml-0.5">出発</span>
+                         </div>
+                       </div>
+                     )}
+                  </div>
+
+                  <div className="flex flex-col items-end text-right ml-2 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      {badgeText && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${badgeColor}`}>{badgeText}</span>}
+                      <span className={`font-bold ${isNormalSection ? 'text-sm' : 'text-sm'} truncate ${s.text.dest}`}>{s.display.destination} 行</span>
+                    </div>
+                    {item.arrivalStationTime && <div className={`text-xs font-medium px-1.5 py-0.5 rounded ${s.text.badge}`}>{item.arrivalStationTime} 着</div>}
+                  </div>
+                </div>
+              </div>
+              {item.comment && (
+                <div className={`mt-2 pt-2 border-t w-full flex items-start gap-1.5 ${s.text.commentBorder} ${s.text.comment}`}>
+                  <MessageCircle size={12} className="mt-0.5 shrink-0 opacity-70" />
+                  <span className="text-xs font-medium opacity-90">{item.comment}</span>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const InfoRow = ({ item, isDarkMode, locationMode }) => {
+          const s = useTrainStyle(item, isDarkMode);
+          
+          return (
+            <div className="px-3 py-2 rounded-lg mb-1.5 flex flex-col transition-transform active:scale-[0.99]" style={s.infoRowStyle}>
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                  <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: s.lineColor }}></div>
+                  <div className={`flex items-baseline gap-1.5 px-2 py-1 rounded shrink-0 shadow-sm ${s.boxClass}`}>
+                    <span className="text-[10px] font-bold">{s.display.trainType}</span>
+                    <span className="font-mono font-bold text-base leading-none">{item.departureTimeStr}</span>
+                  </div>
+                  <div className="flex items-baseline shrink-0 mx-1">
+                    <span className={`text-xs mr-0.5 ${s.text.sub}`}>あと</span>
+                    <span className="font-bold text-lg leading-none" style={{ color: s.text.infoNumber }}>{item.diffMinutes}</span>
+                    <span className={`text-xs ml-0.5 ${s.text.sub}`}>分</span>
+                  </div>
+                  
+                  {locationMode === MODES.OFFICE && item.homeDepartureTime && (
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 font-mono ${s.infoDepartureBoxClass}`}>
+                      {item.homeDepartureTime}発
+                    </span>
+                  )}
+
+                  <span className={`text-xs font-medium truncate flex-1 ${s.text.dest}`}>{s.display.destination} 行</span>
+                </div>
+                {item.arrivalStationTime && <span className={`text-xs font-medium px-1.5 py-0.5 rounded ml-2 shrink-0 font-mono ${s.text.badge}`}>{item.arrivalStationTime}着</span>}
+              </div>
+              {item.comment && (
+                <div className={`mt-1.5 pt-1.5 border-t w-full flex items-start gap-1.5 ${s.text.commentBorder} ${s.text.comment}`}>
+                  <MessageCircle size={10} className="mt-0.5 shrink-0 opacity-70" />
+                  <span className="text-[10px] font-medium opacity-90">{item.comment}</span>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const TrainSection = ({ title, icon, items, type = 'card', badgeColor, badgeText, isDarkMode, locationMode, sectionType }) => {
+          const headerColorClass = type === 'info' 
+            ? 'text-slate-500 dark:text-slate-400' 
+            : (badgeText === 'Go!' || badgeText === 'Hurry!') 
+              ? 'text-rose-600 dark:text-rose-400' 
+              : (title.includes('急げ') 
+                ? 'text-amber-600 dark:text-amber-400' 
+                : (title.includes('待つ') ? (title.includes('かなり') ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400') : 'text-emerald-600 dark:text-emerald-400'));
+
+          return (
+            <section>
+              <h2 className={`text-sm font-bold mb-2 flex items-center gap-2 ${headerColorClass}`}>
+                {icon} {title}
+              </h2>
+              <div className={`space-y-${type === 'info' ? '2 opacity-80' : '3'}`}>
+                {items.length === 0 ? (
+                  <p className="text-sm text-slate-400 dark:text-slate-500 italic pl-6 mb-6">該当する電車はありません</p>
+                ) : (
+                  items.map(item => type === 'info' 
+                    ? <InfoRow key={item.id} item={item} isDarkMode={isDarkMode} locationMode={locationMode} />
+                    : <TrainCard key={item.id} item={item} badgeColor={badgeColor} badgeText={badgeText} isDarkMode={isDarkMode} locationMode={locationMode} sectionType={sectionType} />
+                  )
+                )}
+              </div>
+            </section>
+          );
+        };
+
+        const ClockTimePicker = ({ initialTime, isOpen, onClose, onTimeSet, isDarkMode }) => {
+          const [mode, setMode] = useState('hours'); 
+          const [selectedDate, setSelectedDate] = useState(new Date(initialTime));
+          const [isPmLayout, setIsPmLayout] = useState(false);
+          const isDragging = useRef(false);
+          const clockRef = useRef(null);
+
+          const CLOCK_SIZE = 256; 
+          const CENTER = CLOCK_SIZE / 2;
+          const RADIUS_OUTER = 100;
+          const RADIUS_INNER = 65;
+          const RADIUS_THRESHOLD = 85; 
+
+          useEffect(() => {
+            if (isOpen) {
+              const d = new Date(initialTime);
+              setSelectedDate(d);
+              setMode('hours');
+              setIsPmLayout(d.getHours() >= 12);
+            }
+          }, [isOpen]);
+
+          if (!isOpen) return null;
+
+          const getDisplayHours = () => String(selectedDate.getHours()).padStart(2, '0');
+          const getDisplayMinutes = () => String(selectedDate.getMinutes()).padStart(2, '0');
+
+          const updateTimeFromPointer = (clientX, clientY, isMove = false) => {
+            if (!clockRef.current) return;
+            const rect = clockRef.current.getBoundingClientRect();
+            const x = clientX - rect.left - CENTER;
+            const y = clientY - rect.top - CENTER;
+            const distance = Math.sqrt(x * x + y * y);
+            let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+            if (angle < 0) angle += 360;
+
+            if (mode === 'hours') {
+              let baseNum = Math.round(angle / 30);
+              if (baseNum === 12) baseNum = 0;
+              const isInner = distance < RADIUS_THRESHOLD;
+              let finalHour;
+              if (isPmLayout) {
+                finalHour = isInner ? baseNum : baseNum + 12;
+                if (!isInner && finalHour === 24) finalHour = 12;
+              } else {
+                finalHour = isInner ? baseNum + 12 : baseNum;
+                if (isInner && finalHour === 24) finalHour = 12;
+              }
+              if (finalHour === 24) finalHour = 0;
+              const newDate = new Date(selectedDate);
+              newDate.setHours(finalHour);
+              setSelectedDate(newDate);
+            } else {
+              let minute = Math.round(angle / 6);
+              if (minute === 60) minute = 0;
+              const newDate = new Date(selectedDate);
+              newDate.setMinutes(minute);
+              setSelectedDate(newDate);
+            }
+          };
+
+          const handlePointerDown = (e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            isDragging.current = true;
+            updateTimeFromPointer(e.clientX, e.clientY, false);
+          };
+          const handlePointerMove = (e) => {
+            if (!isDragging.current) return;
+            updateTimeFromPointer(e.clientX, e.clientY, true);
+          };
+          const handlePointerUp = () => {
+            isDragging.current = false;
+            if (mode === 'hours') setMode('minutes');
+          };
+
+          const renderClockNumbers = () => {
+            const numbers = [];
+            if (mode === 'hours') {
+              const outerOffset = isPmLayout ? 12 : 0;
+              const innerOffset = isPmLayout ? 0 : 12;
+              for (let i = 0; i < 12; i++) {
+                const rad = (i * 30 - 90) * (Math.PI / 180);
+                const x = CENTER + RADIUS_OUTER * Math.cos(rad);
+                const y = CENTER + RADIUS_OUTER * Math.sin(rad);
+                let displayNum = i + outerOffset;
+                if (displayNum === 24) displayNum = 0;
+                const isSelected = (selectedDate.getHours() === displayNum); 
+                numbers.push(
+                  <div key={`outer-${i}`} className={`absolute w-12 h-12 -ml-6 -mt-6 flex items-center justify-center rounded-full text-lg font-medium transition-colors pointer-events-none z-20 select-none ${isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`} style={{ left: x, top: y }}>{displayNum}</div>
+                );
+              }
+              for (let i = 0; i < 12; i++) {
+                const rad = (i * 30 - 90) * (Math.PI / 180);
+                const x = CENTER + RADIUS_INNER * Math.cos(rad);
+                const y = CENTER + RADIUS_INNER * Math.sin(rad);
+                let displayNum = i + innerOffset;
+                if (displayNum === 24) displayNum = 0;
+                const isSelected = (selectedDate.getHours() === displayNum);
+                numbers.push(
+                  <div key={`inner-${i}`} className={`absolute w-10 h-10 -ml-5 -mt-5 flex items-center justify-center rounded-full text-sm font-medium transition-colors pointer-events-none z-20 select-none ${isSelected ? 'text-white' : 'text-slate-500 dark:text-slate-500'}`} style={{ left: x, top: y }}>{displayNum}</div>
+                );
+              }
+            } else {
+              for (let i = 0; i < 60; i += 5) {
+                const rad = (i * 6 - 90) * (Math.PI / 180);
+                const x = CENTER + RADIUS_OUTER * Math.cos(rad);
+                const y = CENTER + RADIUS_OUTER * Math.sin(rad);
+                const isSelected = selectedDate.getMinutes() === i;
+                numbers.push(
+                  <div key={i} className={`absolute w-10 h-10 -ml-5 -mt-5 flex items-center justify-center rounded-full text-lg font-medium transition-colors pointer-events-none z-20 select-none ${isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`} style={{ left: x, top: y }}>{i}</div>
+                );
+              }
+            }
+            return numbers;
+          };
+
+          const getHandRotation = () => mode === 'hours' ? ((selectedDate.getHours() % 12) * 30) : (selectedDate.getMinutes() * 6);
+          const getHandLength = () => {
+            if (mode === 'hours') {
+              const h = selectedDate.getHours();
+              const isAm = h < 12;
+              return isPmLayout ? (isAm ? RADIUS_INNER : RADIUS_OUTER) : (!isAm ? RADIUS_INNER : RADIUS_OUTER);
+            }
+            return RADIUS_OUTER;
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-800 w-[320px] rounded-3xl overflow-hidden shadow-2xl flex flex-col scale-110 md:scale-100">
+                <div className="bg-slate-800 p-8 flex flex-col items-center justify-center gap-2 relative">
+                  <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
+                  <div className="flex items-baseline gap-1 text-6xl font-mono font-bold text-white">
+                    <button onClick={() => { setMode('hours'); setIsPmLayout(selectedDate.getHours() >= 12); }} className={`px-2 py-1 rounded transition-colors ${mode === 'hours' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayHours()}</button>
+                    <span className="text-white/50">:</span>
+                    <button onClick={() => setMode('minutes')} className={`px-2 py-1 rounded transition-colors ${mode === 'minutes' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayMinutes()}</button>
+                  </div>
+                </div>
+                <div className="p-6 flex justify-center bg-slate-50 dark:bg-slate-900">
+                  <div ref={clockRef} className="relative rounded-full bg-slate-200 dark:bg-slate-800 cursor-pointer shadow-inner mx-auto touch-none" style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }} 
+                    onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
+                    <div className="absolute top-1/2 left-1/2 w-3 h-3 -ml-1.5 -mt-1.5 bg-blue-600 rounded-full z-10 pointer-events-none" />
+                    <div className="absolute top-1/2 left-1/2 w-1 bg-blue-600 origin-bottom z-0 transition-none ease-linear -ml-[2px] pointer-events-none" style={{ height: getHandLength(), marginTop: -getHandLength(), transform: `rotate(${getHandRotation()}deg)` }}>
+                      <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-blue-600 rounded-full flex items-center justify-center opacity-20" />
+                      <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-transparent rounded-full flex items-center justify-center z-10 border-2 border-blue-600">
+                        {mode === 'minutes' && (selectedDate.getMinutes() % 5 !== 0) && (<div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />)}
+                      </div>
+                    </div>
+                    {renderClockNumbers()}
+                  </div>
+                </div>
+                <div className="p-4 flex justify-end items-center bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 gap-4">
+                  <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">キャンセル</button>
+                  <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg">OK</button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // --- Main App Component ---
+        const App = () => {
+          const { 
+            notionSecret, setNotionSecret, databaseId, setDatabaseId, proxyUrl, setProxyUrl,
+            rawItems, isLoading, error, showConfig, setShowConfig, fetchNotionData, clearSettings 
+          } = useNotionData();
+
+          const {
+            targetTime, isManualMode, addMinutes, resetTime, setManualTime, getDisplayTime
+          } = useTimeManager();
+
+          const [locationMode, setLocationMode] = useState(MODES.OFFICE);
+          const categorizedItems = useTrainCategorizer(rawItems, targetTime, locationMode);
+          const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+          const [isDarkMode, setIsDarkMode] = useState(() => {
+            const savedMode = localStorage.getItem(STORAGE_KEYS.THEME);
+            if (savedMode) {
+              return savedMode === 'dark';
+            }
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          });
+
+          const toggleDarkMode = () => {
+            const newMode = !isDarkMode;
+            setIsDarkMode(newMode);
+            localStorage.setItem(STORAGE_KEYS.THEME, newMode ? 'dark' : 'light');
+          };
+
+          const getSectionData = () => {
+            if (locationMode === MODES.OFFICE) {
+              return [
+                { title: '急げば間に合う (10-14分)', icon: <Zap size={16} fill="currentColor" />, items: categorizedItems.officeCategories.rush, type: 'card', badgeColor: 'bg-amber-100 text-amber-700', badgeText: 'Hurry!', sectionType: 'rush' },
+                { title: '余裕を持って間に合う (15-30分)', icon: <CheckCircle size={16} />, items: categorizedItems.officeCategories.normal, type: 'card', sectionType: 'normal' },
+                { title: '参考情報 (30-60分)', icon: <Info size={16} />, items: categorizedItems.officeCategories.info, type: 'info', sectionType: 'info' }
+              ];
+            } else {
+              return [
+                { title: 'すぐ来る (0-5分)', icon: <Zap size={16} fill="currentColor" />, items: categorizedItems.stationCategories.immediate, type: 'card', badgeColor: 'bg-rose-100 text-rose-700', badgeText: 'Go!', sectionType: 'immediate' },
+                { title: 'ちょっと待つ (6-15分)', icon: <CheckCircle size={16} />, items: categorizedItems.stationCategories.shortWait, type: 'card', sectionType: 'shortWait' },
+                { title: 'かなり待つ (16-30分)', icon: <Clock size={16} />, items: categorizedItems.stationCategories.longWait, type: 'card', sectionType: 'longWait' },
+                { title: '参考情報 (31-60分)', icon: <Info size={16} />, items: categorizedItems.stationCategories.info, type: 'info', sectionType: 'info' }
+              ];
+            }
+          };
+
+          return (
+            <div className={`min-h-screen font-sans pb-20 transition-colors duration-200 ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
+              <ClockTimePicker 
+                isOpen={isPickerOpen} 
+                initialTime={targetTime} 
+                onClose={() => setIsPickerOpen(false)} 
+                onTimeSet={(date) => { setManualTime(date); setIsPickerOpen(false); }}
+                isDarkMode={isDarkMode}
+              />
+
+              <Header 
+                displayTime={getDisplayTime()}
+                isManualMode={isManualMode}
+                onResetTime={resetTime}
+                onAddMinutes={addMinutes}
+                locationMode={locationMode}
+                onLocationChange={setLocationMode}
+                onConfigClick={() => setShowConfig(!showConfig)}
+                onPickerClick={() => setIsPickerOpen(true)}
+                isDarkMode={isDarkMode}
+                toggleDarkMode={toggleDarkMode}
+              />
+
+              <main className="max-w-md mx-auto p-4 space-y-6">
+                {showConfig && (
+                  <ConfigPanel 
+                    notionSecret={notionSecret} setNotionSecret={setNotionSecret}
+                    databaseId={databaseId} setDatabaseId={setDatabaseId}
+                    proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
+                    fetchNotionData={fetchNotionData} isLoading={isLoading}
+                    clearSettings={clearSettings}
+                  />
+                )}
+
+                {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
+
+                {getSectionData().map((section, index) => (
+                  <TrainSection 
+                    key={index}
+                    title={section.title}
+                    icon={section.icon}
+                    items={section.items}
+                    type={section.type}
+                    badgeColor={section.badgeColor}
+                    badgeText={section.badgeText}
+                    isDarkMode={isDarkMode}
+                    locationMode={locationMode}
+                    sectionType={section.sectionType}
+                  />
+                ))}
+              </main>
+            </div>
+          );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    
+    <!-- PWA Installation Script (Dynamic Injection) -->
+    <script>
+      // 1. Manifest Injection
+      const manifest = {
+        "name": "JustTrain",
+        "short_name": "JustTrain",
+        "start_url": "./index.html",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#2563eb",
+        "icons": [
+          { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+          { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+        ]
+      };
+      
+      const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(manifestBlob);
+      document.getElementById('manifest-link').href = manifestURL;
+
+      // 2. Service Worker Injection
+      if ('serviceWorker' in navigator) {
+        const swCode = `
+          const CACHE_NAME = 'justtrain-v4.2.0';
+          const URLS_TO_CACHE = [
+            './',
+            './index.html',
+            './icon-32.png',
+            './icon-180.png',
+            './icon-192.png',
+            './icon-512.png',
+            'https://cdn.tailwindcss.com',
+            'https://esm.sh/react@18.2.0',
+            'https://esm.sh/react-dom@18.2.0/client',
+            'https://esm.sh/lucide-react@0.263.1',
+            'https://unpkg.com/@babel/standalone/babel.min.js'
+          ];
+
+          self.addEventListener('install', (event) => {
+            self.skipWaiting();
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE))
+            );
+          });
+
+          self.addEventListener('fetch', (event) => {
+            event.respondWith(
+              caches.match(event.request).then((response) => response || fetch(event.request))
+            );
+          });
+
+          self.addEventListener('activate', (event) => {
+            const cacheWhitelist = [CACHE_NAME];
+            event.waitUntil(
+              caches.keys().then((cacheNames) => {
+                return Promise.all(
+                  cacheNames.map((cacheName) => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                      return caches.delete(cacheName);
+                    }
+                  })
+                );
+              })
+            );
+          });
+        `;
+
+        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        const swURL = URL.createObjectURL(swBlob);
+
+        navigator.serviceWorker.register(swURL)
+          .then(registration => console.log('SW registered'))
+          .catch(err => console.log('SW registration failed: ', err));
+      }
+    </script>
+</body>
+</html>
