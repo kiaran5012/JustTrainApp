@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 4.3.0 (Responsive Layout)
+  Version: 5.1.1 (Backdrop Click to Confirm)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -48,35 +48,61 @@
     }
     </script>
     <!-- Babel for JSX transformation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
 
     <style>
         body {
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            overflow: hidden;
+            background-color: #020617;
         }
-        input {
-            user-select: text;
+        @media (prefers-color-scheme: light) {
+            html:not(.dark), body:not(.dark) {
+                background-color: #f1f5f9;
+            }
         }
-        /* スクロールバーのカスタマイズ（PC向け） */
-        ::-webkit-scrollbar {
-            width: 8px;
+        input { user-select: text; }
+
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.6); }
+
+        /* --- レスポンシブ調整 --- */
+
+        /* Level 1: 高さ 500px 以下 (タイトル移動) */
+        @media (min-width: 768px) and (max-height: 500px) {
+            .mq-hide-h-500 { display: none !important; }
+            .mq-show-h-500-flex { display: flex !important; }
+            .mq-left-pane-scroll {
+                justify-content: flex-start !important;
+                overflow-y: auto !important;
+                height: 100vh !important;
+                padding-top: 1rem !important;
+                padding-bottom: 1rem !important;
+            }
+            .landscape-short-main { padding-bottom: 1rem !important; }
         }
-        ::-webkit-scrollbar-track {
-            background: transparent;
+
+        /* Level 2: 高さ 415px 以下 (スイッチ移動) */
+        @media (min-width: 768px) and (max-height: 415px) {
+            .mq-hide-h-415 { display: none !important; }
+            .mq-show-h-415 { display: block !important; }
         }
-        ::-webkit-scrollbar-thumb {
-            background-color: rgba(156, 163, 175, 0.5);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background-color: rgba(100, 116, 139, 0.8);
+
+        /* 時刻ピッカー: 横長かつ縦狭のとき、ボタン位置を変更 */
+        @media (min-width: 768px) and (max-height: 500px) {
+            .picker-btns-right { display: none !important; }
+            .picker-btns-left { display: flex !important; }
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root" style="height: 100%;"></div>
 
     <!-- Main Application Code -->
     <script type="text/babel" data-type="module">
@@ -85,32 +111,12 @@
         import { Settings, RefreshCw, AlertCircle, Database, Clock, RotateCcw, Zap, CheckCircle, Info, X, Check, Save, Trash2, Building2, Train, ExternalLink, MessageCircle, Moon, Sun } from 'lucide-react';
 
         // --- Constants & Config ---
-
-        const MODES = {
-          OFFICE: 'office',
-          STATION: 'station',
-        };
-
-        const STORAGE_KEYS = {
-          SECRET: 'timetable_secret',
-          DB_ID: 'timetable_db_id',
-          PROXY: 'timetable_proxy',
-          THEME: 'timetable_theme',
-        };
-
-        const LINE_COLORS = {
-          LIGHT: { mN: '#00ac9b', mI: '#0079c2', default: '#64748b' },
-          DARK:  { mN: '#5eead4', mI: '#93c5fd', default: '#cbd5e1' }
-        };
-
-        const NOTION_COLOR_MAP = {
-          default: 'slate', gray: 'slate', brown: 'amber', orange: 'orange',
-          yellow: 'yellow', green: 'emerald', blue: 'blue', purple: 'purple',
-          pink: 'pink', red: 'rose'
-        };
+        const MODES = { OFFICE: 'office', STATION: 'station' };
+        const STORAGE_KEYS = { SECRET: 'timetable_secret', DB_ID: 'timetable_db_id', PROXY: 'timetable_proxy', THEME: 'timetable_theme' };
+        const LINE_COLORS = { LIGHT: { mN: '#00ac9b', mI: '#0079c2', default: '#64748b' }, DARK:  { mN: '#5eead4', mI: '#93c5fd', default: '#cbd5e1' } };
+        const NOTION_COLOR_MAP = { default: 'slate', gray: 'slate', brown: 'amber', orange: 'orange', yellow: 'yellow', green: 'emerald', blue: 'blue', purple: 'purple', pink: 'pink', red: 'rose' };
 
         // --- Helper Functions ---
-
         const getPropertyValue = (prop) => {
           if (!prop) return '';
           try {
@@ -123,23 +129,18 @@
             return '';
           } catch (e) { return ''; }
         };
-
         const parseTimeStr = (timeStr, baseDate) => {
           if (!timeStr) return null;
           const [hours, minutes] = timeStr.split(':').map(Number);
           const date = new Date(baseDate);
           date.setHours(hours, minutes, 0, 0);
-          if (date < baseDate && (baseDate.getHours() > 20 && hours < 4)) {
-             date.setDate(date.getDate() + 1);
-          }
+          if (date < baseDate && (baseDate.getHours() > 20 && hours < 4)) date.setDate(date.getDate() + 1);
           return date;
         };
-
         const formatDestination = (destination) => {
           if (!destination) return '';
           return destination.replace(/^[^_]*_/, '').replace(/駅$/, '');
         };
-
         const getLineColor = (stationName, isDarkMode) => {
           const colors = isDarkMode ? LINE_COLORS.DARK : LINE_COLORS.LIGHT;
           if (!stationName) return colors.default;
@@ -147,9 +148,7 @@
           if (stationName.startsWith('mI')) return colors.mI;
           return colors.default;
         };
-
         const getTailwindColor = (notionColor) => NOTION_COLOR_MAP[notionColor] || 'slate';
-
         const hexToRgba = (hex, alpha) => {
           const r = parseInt(hex.slice(1, 3), 16);
           const g = parseInt(hex.slice(3, 5), 16);
@@ -158,59 +157,26 @@
         };
 
         // --- Logic Hooks ---
-
         const useTrainStyle = (item, isDarkMode) => {
           const lineColor = getLineColor(item.departureStation, isDarkMode);
           const isLowPriority = item.trainType && item.trainType.includes('/❌');
           const typeColor = getTailwindColor(item.color);
-
-          // 1. 背景色 & ストライプ
           const bgAlpha = isDarkMode ? 0.30 : 0.2;
           const bgColor = hexToRgba(lineColor, bgAlpha);
-          
           const stripeColor = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(100, 100, 100, 0.1)';
           const backgroundStyle = {
             backgroundColor: bgColor,
-            ...(isLowPriority && {
-              backgroundImage: `repeating-linear-gradient(-45deg, ${stripeColor}, ${stripeColor} 10px, transparent 10px, transparent 20px)`
-            })
+            ...(isLowPriority && { backgroundImage: `repeating-linear-gradient(-45deg, ${stripeColor}, ${stripeColor} 10px, transparent 10px, transparent 20px)` })
           };
-
-          // 2. ボーダー色
-          const borderColor = isLowPriority 
-            ? (isDarkMode ? '#64748b' : '#94a3b8') 
-            : lineColor;
-
-          // 3. テキスト色
-          const accentTextColor = isLowPriority 
-            ? (isDarkMode ? '#e2e8f0' : '#1e293b') 
-            : lineColor;
-
-          // 4. 左側の種別・時刻枠のスタイル
-          const boxClass = isLowPriority 
-            ? (isDarkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-600 text-white border-slate-700')
-            : (isDarkMode 
-                ? `bg-${typeColor}-900/50 text-${typeColor}-100 border border-${typeColor}-700` 
-                : `bg-${typeColor}-100 text-${typeColor}-800 border border-${typeColor}-200`);
-
-          // 5. 出発時刻枠（オフィスモード用 - TrainCard）のスタイル
-          const departureBoxClass = isDarkMode
-            ? 'bg-slate-800 text-white border-slate-600'
-            : 'bg-white text-slate-800 border-slate-200';
-
-          // 6. 出発時刻枠（オフィスモード用 - InfoRow）のスタイル
-          const infoDepartureBoxClass = isDarkMode
-            ? 'bg-slate-800 text-white border border-slate-600'
-            : 'bg-white text-slate-800 border border-slate-200 shadow-sm';
+          const borderColor = isLowPriority ? (isDarkMode ? '#64748b' : '#94a3b8') : lineColor;
+          const accentTextColor = isLowPriority ? (isDarkMode ? '#e2e8f0' : '#1e293b') : lineColor;
+          const boxClass = isLowPriority ? (isDarkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-600 text-white border-slate-700') : (isDarkMode ? `bg-${typeColor}-900/50 text-${typeColor}-100 border border-${typeColor}-700` : `bg-${typeColor}-100 text-${typeColor}-800 border border-${typeColor}-200`);
+          const departureBoxClass = isDarkMode ? 'bg-slate-800 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200';
+          const infoDepartureBoxClass = isDarkMode ? 'bg-slate-800 text-white border border-slate-600' : 'bg-white text-slate-800 border border-slate-200 shadow-sm';
 
           return {
-            lineColor,
-            containerStyle: { ...backgroundStyle, borderLeft: `5px solid ${borderColor}` },
-            infoRowStyle: { ...backgroundStyle },
-            boxClass,
-            departureBoxClass,
-            infoDepartureBoxClass,
-            accentTextColor,
+            lineColor, containerStyle: { ...backgroundStyle, borderLeft: `5px solid ${borderColor}` }, infoRowStyle: { ...backgroundStyle },
+            boxClass, departureBoxClass, infoDepartureBoxClass, accentTextColor,
             text: {
               sub: isDarkMode ? 'text-slate-400' : 'text-slate-600',
               dest: isDarkMode ? 'text-slate-200' : 'text-slate-700',
@@ -230,94 +196,44 @@
           const [notionSecret, setNotionSecret] = useState(localStorage.getItem(STORAGE_KEYS.SECRET) || '');
           const [databaseId, setDatabaseId] = useState(localStorage.getItem(STORAGE_KEYS.DB_ID) || '');
           const [proxyUrl, setProxyUrl] = useState(localStorage.getItem(STORAGE_KEYS.PROXY) || 'https://cors-anywhere.herokuapp.com/');
-          
           const [rawItems, setRawItems] = useState([]);
           const [isLoading, setIsLoading] = useState(false);
           const [error, setError] = useState(null);
           const [showConfig, setShowConfig] = useState(!localStorage.getItem(STORAGE_KEYS.SECRET));
 
           const fetchNotionData = useCallback(async () => {
-            if (!notionSecret || !databaseId) {
-              setError('APIキーとデータベースIDを入力してください。');
-              return;
-            }
-            setIsLoading(true);
-            setError(null);
+            if (!notionSecret || !databaseId) { setError('APIキーとデータベースIDを入力してください。'); return; }
+            setIsLoading(true); setError(null);
             const url = `${proxyUrl}https://api.notion.com/v1/databases/${databaseId}/query`;
-
             try {
               const response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${notionSecret}`,
-                  'Notion-Version': '2022-06-28',
-                  'Content-Type': 'application/json',
-                  'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                  page_size: 100,
-                  sorts: [{ property: '電車発車時刻', direction: 'ascending' }],
-                })
+                headers: { 'Authorization': `Bearer ${notionSecret}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ page_size: 100, sorts: [{ property: '電車発車時刻', direction: 'ascending' }] })
               });
-
               const textData = await response.text();
               let data;
-              try {
-                data = JSON.parse(textData);
-              } catch (e) {
-                if (textData.includes('See /corsdemo')) throw new Error('CORS_DEMO_LIMIT');
-                throw new Error(`APIレスポンスが無効です: ${textData.substring(0, 50)}...`);
-              }
-
+              try { data = JSON.parse(textData); } catch (e) { if (textData.includes('See /corsdemo')) throw new Error('CORS_DEMO_LIMIT'); throw new Error(`APIレスポンスが無効です: ${textData.substring(0, 50)}...`); }
               if (!response.ok) throw new Error(data.message || `エラーが発生しました: ${response.status}`);
-              
-              localStorage.setItem(STORAGE_KEYS.SECRET, notionSecret);
-              localStorage.setItem(STORAGE_KEYS.DB_ID, databaseId);
-              localStorage.setItem(STORAGE_KEYS.PROXY, proxyUrl);
-
+              localStorage.setItem(STORAGE_KEYS.SECRET, notionSecret); localStorage.setItem(STORAGE_KEYS.DB_ID, databaseId); localStorage.setItem(STORAGE_KEYS.PROXY, proxyUrl);
               const formattedData = data.results.map(page => {
                 const props = page.properties;
                 return {
-                  id: page.id,
-                  name: getPropertyValue(props['名前']),
-                  trainType: getPropertyValue(props['種別']),
-                  departureTimeStr: getPropertyValue(props['電車発車時刻']),
-                  destination: getPropertyValue(props['行先駅']),
-                  comment: getPropertyValue(props['コメント']),
-                  homeDepartureTime: getPropertyValue(props['出発時刻']),
-                  departureStation: getPropertyValue(props['出発駅']),
-                  arrivalStationTime: getPropertyValue(props['電車到着時刻']),
-                  type: getPropertyValue(props['Type']),
-                  color: props['種別']?.select?.color || 'gray'
+                  id: page.id, name: getPropertyValue(props['名前']), trainType: getPropertyValue(props['種別']),
+                  departureTimeStr: getPropertyValue(props['電車発車時刻']), destination: getPropertyValue(props['行先駅']),
+                  comment: getPropertyValue(props['コメント']), homeDepartureTime: getPropertyValue(props['出発時刻']),
+                  departureStation: getPropertyValue(props['出発駅']), arrivalStationTime: getPropertyValue(props['電車到着時刻']),
+                  type: getPropertyValue(props['Type']), color: props['種別']?.select?.color || 'gray'
                 };
               }).filter(item => item.departureTimeStr && item.type === '退勤');
-
-              setRawItems(formattedData);
-              setShowConfig(false); 
+              setRawItems(formattedData); setShowConfig(false); 
             } catch (err) {
-              if (err.message === 'CORS_DEMO_LIMIT') {
-                setError(
-                  <span>CORSプロキシの利用制限にかかりました。<br/><a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" rel="noreferrer" className="underline font-bold flex items-center gap-1 mt-1"><ExternalLink size={14}/> こちらのページを開き、</a>「Request temporary access」ボタンを押してから再試行してください。</span>
-                );
-              } else {
-                setError(err.message);
-              }
-            } finally {
-              setIsLoading(false);
-            }
+              if (err.message === 'CORS_DEMO_LIMIT') { setError(<span>CORSプロキシの利用制限にかかりました。<br/><a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" rel="noreferrer" className="underline font-bold flex items-center gap-1 mt-1"><ExternalLink size={14}/> こちらのページを開き、</a>「Request temporary access」ボタンを押してから再試行してください。</span>); } else { setError(err.message); }
+            } finally { setIsLoading(false); }
           }, [notionSecret, databaseId, proxyUrl]);
 
-          useEffect(() => {
-            if (localStorage.getItem(STORAGE_KEYS.SECRET)) fetchNotionData();
-          }, []);
-
-          const clearSettings = () => {
-            localStorage.removeItem(STORAGE_KEYS.SECRET);
-            localStorage.removeItem(STORAGE_KEYS.DB_ID);
-            localStorage.removeItem(STORAGE_KEYS.PROXY);
-            setNotionSecret(''); setDatabaseId(''); setError('設定をクリアしました。');
-          };
-
+          useEffect(() => { if (localStorage.getItem(STORAGE_KEYS.SECRET)) fetchNotionData(); }, []);
+          const clearSettings = () => { localStorage.removeItem(STORAGE_KEYS.SECRET); localStorage.removeItem(STORAGE_KEYS.DB_ID); localStorage.removeItem(STORAGE_KEYS.PROXY); setNotionSecret(''); setDatabaseId(''); setError('設定をクリアしました。'); };
           return { notionSecret, setNotionSecret, databaseId, setDatabaseId, proxyUrl, setProxyUrl, rawItems, isLoading, error, showConfig, setShowConfig, fetchNotionData, clearSettings };
         };
 
@@ -325,35 +241,13 @@
           const [currentTime, setCurrentTime] = useState(new Date()); 
           const [targetTime, setTargetTime] = useState(new Date());   
           const [isManualMode, setIsManualMode] = useState(false);
-
           useEffect(() => {
-            const timer = setInterval(() => {
-              const now = new Date();
-              setCurrentTime(now);
-              if (!isManualMode) setTargetTime(now);
-            }, 1000);
+            const timer = setInterval(() => { const now = new Date(); setCurrentTime(now); if (!isManualMode) setTargetTime(now); }, 1000);
             return () => clearInterval(timer);
           }, [isManualMode]);
-
-          const addMinutes = (minutes) => {
-            setIsManualMode(true);
-            setTargetTime(prev => {
-              const newTime = new Date(prev);
-              newTime.setMinutes(newTime.getMinutes() + minutes);
-              return newTime;
-            });
-          };
-
-          const resetTime = () => {
-            setIsManualMode(false);
-            setTargetTime(new Date());
-          };
-
-          const setManualTime = (date) => {
-            setIsManualMode(true);
-            setTargetTime(date);
-          };
-
+          const addMinutes = (minutes) => { setIsManualMode(true); setTargetTime(prev => { const newTime = new Date(prev); newTime.setMinutes(newTime.getMinutes() + minutes); return newTime; }); };
+          const resetTime = () => { setIsManualMode(false); setTargetTime(new Date()); };
+          const setManualTime = (date) => { setIsManualMode(true); setTargetTime(date); };
           return { targetTime, isManualMode, addMinutes, resetTime, setManualTime, getDisplayTime: () => ({ hours: String(targetTime.getHours()).padStart(2, '0'), minutes: String(targetTime.getMinutes()).padStart(2, '0') }) };
         };
 
@@ -361,35 +255,17 @@
           return useMemo(() => {
             const officeCategories = { rush: [], normal: [], info: [] };
             const stationCategories = { immediate: [], shortWait: [], longWait: [], info: [] };
-
             rawItems.forEach(item => {
               const trainDate = parseTimeStr(item.departureTimeStr, targetTime);
               if (!trainDate) return;
-              
               const diffMs = trainDate - targetTime;
               const diffMinutes = Math.floor(diffMs / (1000 * 60));
-
               if (locationMode === MODES.OFFICE) {
-                if (diffMinutes >= 10 && diffMinutes < 15) {
-                  officeCategories.rush.push({ ...item, diffMinutes });
-                } else if (diffMinutes >= 15 && diffMinutes < 30) {
-                  officeCategories.normal.push({ ...item, diffMinutes });
-                } else if (diffMinutes >= 30 && diffMinutes <= 60) {
-                  officeCategories.info.push({ ...item, diffMinutes });
-                }
+                if (diffMinutes >= 10 && diffMinutes < 15) { officeCategories.rush.push({ ...item, diffMinutes }); } else if (diffMinutes >= 15 && diffMinutes < 30) { officeCategories.normal.push({ ...item, diffMinutes }); } else if (diffMinutes >= 30 && diffMinutes <= 60) { officeCategories.info.push({ ...item, diffMinutes }); }
               } else {
-                if (diffMinutes >= 0 && diffMinutes <= 5) {
-                  stationCategories.immediate.push({ ...item, diffMinutes });
-                } else if (diffMinutes >= 6 && diffMinutes <= 15) {
-                  stationCategories.shortWait.push({ ...item, diffMinutes });
-                } else if (diffMinutes >= 16 && diffMinutes <= 30) {
-                  stationCategories.longWait.push({ ...item, diffMinutes });
-                } else if (diffMinutes >= 31 && diffMinutes <= 60) {
-                  stationCategories.info.push({ ...item, diffMinutes });
-                }
+                if (diffMinutes >= 0 && diffMinutes <= 5) { stationCategories.immediate.push({ ...item, diffMinutes }); } else if (diffMinutes >= 6 && diffMinutes <= 15) { stationCategories.shortWait.push({ ...item, diffMinutes }); } else if (diffMinutes >= 16 && diffMinutes <= 30) { stationCategories.longWait.push({ ...item, diffMinutes }); } else if (diffMinutes >= 31 && diffMinutes <= 60) { stationCategories.info.push({ ...item, diffMinutes }); }
               }
             });
-
             return { officeCategories, stationCategories };
           }, [rawItems, targetTime, locationMode]);
         };
@@ -416,86 +292,57 @@
           const isPlus = minutes > 0;
           const absMinutes = Math.abs(minutes);
           const isLarge = absMinutes === 5;
-          
-          const baseClasses = "px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all shadow-sm";
-          const lightClasses = isPlus 
-            ? (isLarge ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200" : "bg-blue-100 border border-blue-200 text-blue-700 hover:bg-blue-200")
-            : (isLarge ? "bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200" : "bg-rose-100 border border-rose-200 text-rose-700 hover:bg-rose-200");
-          
-          const darkClasses = isPlus
-            ? (isLarge ? "dark:bg-blue-800 dark:text-white dark:hover:bg-blue-700 dark:shadow-none" : "dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/50")
-            : (isLarge ? "dark:bg-rose-800 dark:text-white dark:hover:bg-rose-700 dark:shadow-none" : "dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/50");
-
+          const baseClasses = "px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all shadow-sm w-full";
+          const lightClasses = isPlus ? (isLarge ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200" : "bg-blue-100 border border-blue-200 text-blue-700 hover:bg-blue-200") : (isLarge ? "bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200" : "bg-rose-100 border border-rose-200 text-rose-700 hover:bg-rose-200");
+          const darkClasses = isPlus ? (isLarge ? "dark:bg-blue-800 dark:text-white dark:hover:bg-blue-700 dark:shadow-none" : "dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/50") : (isLarge ? "dark:bg-rose-800 dark:text-white dark:hover:bg-rose-700 dark:shadow-none" : "dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/50");
           const borderClass = isLarge ? "border border-transparent" : "";
-
-          return (
-            <button onClick={onClick} className={`${baseClasses} ${lightClasses} ${darkClasses} ${borderClass}`}>
-              {isPlus ? '+' : ''}{minutes}分
-            </button>
-          );
+          return <button onClick={onClick} className={`${baseClasses} ${lightClasses} ${darkClasses} ${borderClass}`}>{isPlus ? '+' : ''}{minutes}分</button>;
         };
 
-        // Header: md:以上のクラスを追加してサイドバー化
-        const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
-          <header className="
-            bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm
-            md:static md:h-full md:border-none md:shadow-none md:flex md:flex-col md:justify-center md:w-full md:bg-transparent dark:md:bg-transparent
-          ">
-            <div className="max-w-md mx-auto p-4 md:w-full md:max-w-full">
-              <div className="flex items-center justify-between mb-4 md:mb-8">
-                <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
-                  <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
-                  JustTrain
-                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v4.3.0</span>
-                </h1>
-                <div className="flex gap-2">
-                  <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                    {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-                  </button>
-                  <button onClick={onConfigClick} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                    <Settings size={20} />
-                  </button>
-                </div>
-              </div>
+        const AppTitle = ({ isDarkMode, toggleDarkMode, onConfigClick, className }) => (
+          <div className={`flex items-center justify-between mb-4 md:mb-8 ${className}`}>
+            <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
+              <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
+              JustTrain
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.1.1</span>
+            </h1>
+            <div className="flex gap-2">
+              <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
+              <button onClick={onConfigClick} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"><Settings size={20} /></button>
+            </div>
+          </div>
+        );
 
+        const LocationSwitcher = ({ locationMode, onLocationChange, className = "" }) => (
+          <div className={`bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-700 shadow-sm ${className}`}>
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <button onClick={() => onLocationChange(MODES.OFFICE)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.OFFICE ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Building2 size={16} /> オフィス (10-15分)</button>
+              <button onClick={() => onLocationChange(MODES.STATION)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.STATION ? 'bg-white dark:bg-slate-600 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Train size={16} /> 駅の近く</button>
+            </div>
+          </div>
+        );
+
+        const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
+          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm md:static md:h-full md:border-none md:shadow-none md:flex md:flex-col md:justify-center md:w-full md:bg-transparent dark:md:bg-transparent mq-left-pane-scroll">
+            <div className="max-w-md mx-auto p-4 md:w-full md:max-w-full">
+              <AppTitle isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} onConfigClick={onConfigClick} className="mq-hide-h-500" />
               <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 md:mb-6 md:p-6">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}
-                  </span>
-                  {isManualMode && (
-                    <button onClick={onResetTime} className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline">
-                      <RotateCcw size={12} /> 現在時刻に戻す
-                    </button>
-                  )}
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}</span>
+                  {isManualMode && <button onClick={onResetTime} className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline"><RotateCcw size={12} /> 現在時刻に戻す</button>}
                 </div>
-                
-                <div className="flex items-center justify-between gap-4 md:flex-col md:items-stretch">
-                  <button onClick={onPickerClick} className="group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 md:justify-center md:py-4">
+                {/* 修正: gap-2 -> gap-2 (縦画面用に狭くしたまま) */}
+                <div className="flex items-center justify-between gap-2 md:gap-4 md:flex-col md:items-stretch">
+                  <button onClick={onPickerClick} className="flex-1 md:flex-auto group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 md:justify-center md:py-4">
                     <Clock className={`w-8 h-8 ${isManualMode ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`} />
-                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} md:text-5xl`}>
-                      {displayTime.hours}:{displayTime.minutes}
-                    </span>
+                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} md:text-5xl`}>{displayTime.hours}:{displayTime.minutes}</span>
                   </button>
-
-                  <div className="grid grid-cols-2 gap-2 md:gap-3">
-                    {[-1, 1, -5, 5].map((min) => (
-                      <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />
-                    ))}
+                  <div className="flex-1 md:flex-auto grid grid-cols-2 gap-2 md:gap-3">
+                    {[-1, 1, -5, 5].map((min) => <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />)}
                   </div>
                 </div>
               </div>
-
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-700 shadow-sm md:p-3">
-                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                  <button onClick={() => onLocationChange(MODES.OFFICE)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.OFFICE ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                    <Building2 size={16} /> オフィス (10-15分)
-                  </button>
-                  <button onClick={() => onLocationChange(MODES.STATION)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.STATION ? 'bg-white dark:bg-slate-600 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                    <Train size={16} /> 駅の近く
-                  </button>
-                </div>
-              </div>
+              <LocationSwitcher locationMode={locationMode} onLocationChange={onLocationChange} className="mq-hide-h-415 md:p-3" />
             </div>
           </header>
         );
@@ -503,7 +350,6 @@
         const TrainCard = ({ item, badgeColor, badgeText, isDarkMode, locationMode, sectionType }) => {
           const s = useTrainStyle(item, isDarkMode);
           const isNormalSection = locationMode === MODES.OFFICE && sectionType === 'normal';
-          
           return (
             <div className="relative flex flex-col p-3 rounded-lg shadow-sm mb-2 transition-transform active:scale-[0.99]" style={s.containerStyle}>
               <div className="flex items-center w-full">
@@ -511,7 +357,6 @@
                   <span className="text-[10px] font-bold leading-tight">{s.display.trainType}</span>
                   <span className="text-lg font-bold leading-tight">{item.departureTimeStr}</span>
                 </div>
-
                 <div className="flex-1 flex items-center justify-between overflow-hidden">
                   <div className="flex items-center gap-3">
                      <div className="flex items-baseline shrink-0">
@@ -519,7 +364,6 @@
                        <span className={`${isNormalSection ? 'text-3xl' : 'text-3xl'} font-bold tracking-tight`} style={{ color: s.accentTextColor }}>{item.diffMinutes}</span>
                        <span className={`text-sm ml-1 ${s.text.sub}`}>分</span>
                      </div>
-                     
                      {isNormalSection && item.homeDepartureTime && (
                        <div className={`flex flex-col items-center justify-center h-14 px-2 rounded shadow-sm shrink-0 border ${s.departureBoxClass}`}>
                          <div className="flex items-baseline">
@@ -529,7 +373,6 @@
                        </div>
                      )}
                   </div>
-
                   <div className="flex flex-col items-end text-right ml-2 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       {badgeText && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${badgeColor}`}>{badgeText}</span>}
@@ -551,7 +394,6 @@
 
         const InfoRow = ({ item, isDarkMode, locationMode }) => {
           const s = useTrainStyle(item, isDarkMode);
-          
           return (
             <div className="px-3 py-2 rounded-lg mb-1.5 flex flex-col transition-transform active:scale-[0.99]" style={s.infoRowStyle}>
               <div className="flex items-center justify-between w-full">
@@ -566,13 +408,9 @@
                     <span className="font-bold text-lg leading-none" style={{ color: s.text.infoNumber }}>{item.diffMinutes}</span>
                     <span className={`text-xs ml-0.5 ${s.text.sub}`}>分</span>
                   </div>
-                  
                   {locationMode === MODES.OFFICE && item.homeDepartureTime && (
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 font-mono ${s.infoDepartureBoxClass}`}>
-                      {item.homeDepartureTime}発
-                    </span>
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 font-mono ${s.infoDepartureBoxClass}`}>{item.homeDepartureTime}発</span>
                   )}
-
                   <span className={`text-xs font-medium truncate flex-1 ${s.text.dest}`}>{s.display.destination} 行</span>
                 </div>
                 {item.arrivalStationTime && <span className={`text-xs font-medium px-1.5 py-0.5 rounded ml-2 shrink-0 font-mono ${s.text.badge}`}>{item.arrivalStationTime}着</span>}
@@ -588,19 +426,10 @@
         };
 
         const TrainSection = ({ title, icon, items, type = 'card', badgeColor, badgeText, isDarkMode, locationMode, sectionType }) => {
-          const headerColorClass = type === 'info' 
-            ? 'text-slate-500 dark:text-slate-400' 
-            : (badgeText === 'Go!' || badgeText === 'Hurry!') 
-              ? 'text-rose-600 dark:text-rose-400' 
-              : (title.includes('急げ') 
-                ? 'text-amber-600 dark:text-amber-400' 
-                : (title.includes('待つ') ? (title.includes('かなり') ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400') : 'text-emerald-600 dark:text-emerald-400'));
-
+          const headerColorClass = type === 'info' ? 'text-slate-500 dark:text-slate-400' : (badgeText === 'Go!' || badgeText === 'Hurry!') ? 'text-rose-600 dark:text-rose-400' : (title.includes('急げ') ? 'text-amber-600 dark:text-amber-400' : (title.includes('待つ') ? (title.includes('かなり') ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400') : 'text-emerald-600 dark:text-emerald-400'));
           return (
             <section>
-              <h2 className={`text-sm font-bold mb-2 flex items-center gap-2 ${headerColorClass}`}>
-                {icon} {title}
-              </h2>
+              <h2 className={`text-sm font-bold mb-2 flex items-center gap-2 ${headerColorClass}`}>{icon} {title}</h2>
               <div className={`space-y-${type === 'info' ? '2 opacity-80' : '3'}`}>
                 {items.length === 0 ? (
                   <p className="text-sm text-slate-400 dark:text-slate-500 italic pl-6 mb-6">該当する電車はありません</p>
@@ -742,32 +571,51 @@
           };
 
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 z-50">
-              <div className="bg-white dark:bg-slate-800 w-[320px] rounded-3xl overflow-hidden shadow-2xl flex flex-col scale-110 md:scale-100">
-                <div className="bg-slate-800 p-8 flex flex-col items-center justify-center gap-2 relative">
-                  <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
-                  <div className="flex items-baseline gap-1 text-6xl font-mono font-bold text-white">
-                    <button onClick={() => { setMode('hours'); setIsPmLayout(selectedDate.getHours() >= 12); }} className={`px-2 py-1 rounded transition-colors ${mode === 'hours' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayHours()}</button>
-                    <span className="text-white/50">:</span>
-                    <button onClick={() => setMode('minutes')} className={`px-2 py-1 rounded transition-colors ${mode === 'minutes' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayMinutes()}</button>
-                  </div>
-                </div>
-                <div className="p-6 flex justify-center bg-slate-50 dark:bg-slate-900">
-                  <div ref={clockRef} className="relative rounded-full bg-slate-200 dark:bg-slate-800 cursor-pointer shadow-inner mx-auto touch-none" style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }} 
-                    onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
-                    <div className="absolute top-1/2 left-1/2 w-3 h-3 -ml-1.5 -mt-1.5 bg-blue-600 rounded-full z-10 pointer-events-none" />
-                    <div className="absolute top-1/2 left-1/2 w-1 bg-blue-600 origin-bottom z-0 transition-none ease-linear -ml-[2px] pointer-events-none" style={{ height: getHandLength(), marginTop: -getHandLength(), transform: `rotate(${getHandRotation()}deg)` }}>
-                      <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-blue-600 rounded-full flex items-center justify-center opacity-20" />
-                      <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-transparent rounded-full flex items-center justify-center z-10 border-2 border-blue-600">
-                        {mode === 'minutes' && (selectedDate.getMinutes() % 5 !== 0) && (<div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />)}
-                      </div>
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 z-50"
+              onClick={() => onTimeSet(selectedDate)} 
+            >
+              <div 
+                className="bg-white dark:bg-slate-900 w-[320px] md:w-auto rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row scale-110 md:scale-100"
+                onClick={(e) => e.stopPropagation()} 
+              >
+                <div className="bg-slate-800 p-8 md:p-10 flex flex-col items-center justify-center gap-2 relative md:w-72 justify-between">
+                  {/* 時刻表示 */}
+                  <div className="flex-1 flex flex-col items-center justify-center w-full">
+                    <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
+                    <div className="flex items-baseline gap-1 text-6xl font-mono font-bold text-white">
+                      <button onClick={() => { setMode('hours'); setIsPmLayout(selectedDate.getHours() >= 12); }} className={`px-2 py-1 rounded transition-colors ${mode === 'hours' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayHours()}</button>
+                      <span className="text-white/50">:</span>
+                      <button onClick={() => setMode('minutes')} className={`px-2 py-1 rounded transition-colors ${mode === 'minutes' ? 'text-blue-400 bg-slate-700/50' : 'text-white/70 hover:text-white'}`}>{getDisplayMinutes()}</button>
                     </div>
-                    {renderClockNumbers()}
+                  </div>
+                  
+                  {/* 左側用ボタン (横長・縦狭時に表示) */}
+                  <div className="picker-btns-left hidden w-full p-4 justify-end gap-4 border-t border-slate-700">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-400 hover:bg-slate-700 rounded-lg">キャンセル</button>
+                    <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-400 hover:bg-slate-700 rounded-lg">OK</button>
                   </div>
                 </div>
-                <div className="p-4 flex justify-end items-center bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 gap-4">
-                  <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">キャンセル</button>
-                  <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg">OK</button>
+
+                <div className="flex flex-col">
+                  <div className="p-6 md:p-8 flex justify-center bg-slate-50 dark:bg-slate-900 flex-1 items-center">
+                    <div ref={clockRef} className="relative rounded-full bg-slate-200 dark:bg-slate-800 cursor-pointer shadow-inner mx-auto touch-none" style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }} 
+                      onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
+                      <div className="absolute top-1/2 left-1/2 w-3 h-3 -ml-1.5 -mt-1.5 bg-blue-600 rounded-full z-10 pointer-events-none" />
+                      <div className="absolute top-1/2 left-1/2 w-1 bg-blue-600 origin-bottom z-0 transition-none ease-linear -ml-[2px] pointer-events-none" style={{ height: getHandLength(), marginTop: -getHandLength(), transform: `rotate(${getHandRotation()}deg)` }}>
+                        <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-blue-600 rounded-full flex items-center justify-center opacity-20" />
+                        <div className="absolute top-0 left-1/2 w-12 h-12 -ml-6 -mt-6 bg-transparent rounded-full flex items-center justify-center z-10 border-2 border-blue-600">
+                          {mode === 'minutes' && (selectedDate.getMinutes() % 5 !== 0) && (<div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />)}
+                        </div>
+                      </div>
+                      {renderClockNumbers()}
+                    </div>
+                  </div>
+                  {/* 右側用ボタン (通常表示) */}
+                  <div className="picker-btns-right p-4 flex justify-end items-center bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 gap-4">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">キャンセル</button>
+                    <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg">OK</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -821,7 +669,11 @@
           };
 
           return (
-            <div className={`min-h-screen font-sans pb-20 transition-colors duration-200 ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} md:flex md:h-screen md:overflow-hidden`}>
+            <div className={`
+              h-[100dvh] w-full font-sans transition-colors duration-200 
+              ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} 
+              flex flex-col md:flex-row overflow-hidden
+            `}>
               <ClockTimePicker 
                 isOpen={isPickerOpen} 
                 initialTime={targetTime} 
@@ -830,8 +682,7 @@
                 isDarkMode={isDarkMode}
               />
 
-              {/* 左カラム (PC時) / 上部ヘッダー (モバイル時) */}
-              <div className="md:w-96 md:flex-shrink-0 md:border-r md:border-slate-200 dark:md:border-slate-700 md:bg-white dark:md:bg-slate-900 md:flex md:flex-col md:justify-center z-20">
+              <div className="w-full md:w-96 flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col justify-center z-20 mq-left-pane-scroll relative">
                 <Header 
                   displayTime={getDisplayTime()}
                   isManualMode={isManualMode}
@@ -846,9 +697,16 @@
                 />
               </div>
 
-              {/* 右カラム (PC時) / メインコンテンツ (モバイル時) */}
-              <div className="md:flex-1 md:overflow-y-auto w-full">
-                <main className="max-w-md mx-auto p-4 space-y-6 md:max-w-4xl md:p-8">
+              <div className="flex-1 w-full h-full overflow-y-auto overscroll-contain">
+                <main className="max-w-md mx-auto p-4 pb-24 space-y-6 md:max-w-4xl md:p-8 md:pb-16 h-full landscape-short-main">
+                  
+                  <AppTitle 
+                    isDarkMode={isDarkMode} 
+                    toggleDarkMode={toggleDarkMode} 
+                    onConfigClick={() => setShowConfig(!showConfig)}
+                    className="hidden mq-show-h-500-flex"
+                  />
+
                   {showConfig && (
                     <ConfigPanel 
                       notionSecret={notionSecret} setNotionSecret={setNotionSecret}
@@ -860,6 +718,12 @@
                   )}
 
                   {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
+
+                  <LocationSwitcher 
+                    locationMode={locationMode} 
+                    onLocationChange={setLocationMode}
+                    className="hidden mq-show-h-415 mb-4"
+                  />
 
                   {getSectionData().map((section, index) => (
                     <TrainSection 
@@ -887,7 +751,6 @@
     
     <!-- PWA Installation Script (Dynamic Injection) -->
     <script>
-      // 1. Manifest Injection
       const manifest = {
         "name": "JustTrain",
         "short_name": "JustTrain",
@@ -905,10 +768,9 @@
       const manifestURL = URL.createObjectURL(manifestBlob);
       document.getElementById('manifest-link').href = manifestURL;
 
-      // 2. Service Worker Injection
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE_NAME = 'justtrain-v4.3.0';
+          const CACHE_NAME = 'justtrain-v5.1.1';
           const URLS_TO_CACHE = [
             './',
             './index.html',
@@ -920,7 +782,7 @@
             'https://esm.sh/react@18.2.0',
             'https://esm.sh/react-dom@18.2.0/client',
             'https://esm.sh/lucide-react@0.263.1',
-            'https://unpkg.com/@babel/standalone/babel.min.js'
+            'https://unpkg.com/@babel/standalone@7.23.9/babel.min.js'
           ];
 
           self.addEventListener('install', (event) => {
