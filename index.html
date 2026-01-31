@@ -1,3 +1,7 @@
+<!--
+  JustTrain
+  Version: 4.3.0 (Responsive Layout)
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -54,6 +58,20 @@
         }
         input {
             user-select: text;
+        }
+        /* スクロールバーのカスタマイズ（PC向け） */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(100, 116, 139, 0.8);
         }
     </style>
 </head>
@@ -146,6 +164,7 @@
           const isLowPriority = item.trainType && item.trainType.includes('/❌');
           const typeColor = getTailwindColor(item.color);
 
+          // 1. 背景色 & ストライプ
           const bgAlpha = isDarkMode ? 0.30 : 0.2;
           const bgColor = hexToRgba(lineColor, bgAlpha);
           
@@ -157,24 +176,29 @@
             })
           };
 
+          // 2. ボーダー色
           const borderColor = isLowPriority 
             ? (isDarkMode ? '#64748b' : '#94a3b8') 
             : lineColor;
 
+          // 3. テキスト色
           const accentTextColor = isLowPriority 
             ? (isDarkMode ? '#e2e8f0' : '#1e293b') 
             : lineColor;
 
+          // 4. 左側の種別・時刻枠のスタイル
           const boxClass = isLowPriority 
             ? (isDarkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-600 text-white border-slate-700')
             : (isDarkMode 
                 ? `bg-${typeColor}-900/50 text-${typeColor}-100 border border-${typeColor}-700` 
                 : `bg-${typeColor}-100 text-${typeColor}-800 border border-${typeColor}-200`);
 
+          // 5. 出発時刻枠（オフィスモード用 - TrainCard）のスタイル
           const departureBoxClass = isDarkMode
             ? 'bg-slate-800 text-white border-slate-600'
             : 'bg-white text-slate-800 border-slate-200';
 
+          // 6. 出発時刻枠（オフィスモード用 - InfoRow）のスタイル
           const infoDepartureBoxClass = isDarkMode
             ? 'bg-slate-800 text-white border border-slate-600'
             : 'bg-white text-slate-800 border border-slate-200 shadow-sm';
@@ -411,14 +435,18 @@
           );
         };
 
+        // Header: md:以上のクラスを追加してサイドバー化
         const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
-          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm">
-            <div className="max-w-md mx-auto p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-                  <Train className="text-blue-600 dark:text-blue-400 w-6 h-6" />
+          <header className="
+            bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm
+            md:static md:h-full md:border-none md:shadow-none md:flex md:flex-col md:justify-center md:w-full md:bg-transparent dark:md:bg-transparent
+          ">
+            <div className="max-w-md mx-auto p-4 md:w-full md:max-w-full">
+              <div className="flex items-center justify-between mb-4 md:mb-8">
+                <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
+                  <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
                   JustTrain
-                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v4.2.0</span>
+                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v4.3.0</span>
                 </h1>
                 <div className="flex gap-2">
                   <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
@@ -430,7 +458,7 @@
                 </div>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3">
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 md:mb-6 md:p-6">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}
@@ -442,15 +470,15 @@
                   )}
                 </div>
                 
-                <div className="flex items-center justify-between gap-4">
-                  <button onClick={onPickerClick} className="group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95">
+                <div className="flex items-center justify-between gap-4 md:flex-col md:items-stretch">
+                  <button onClick={onPickerClick} className="group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 md:justify-center md:py-4">
                     <Clock className={`w-8 h-8 ${isManualMode ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`} />
-                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'}`}>
+                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} md:text-5xl`}>
                       {displayTime.hours}:{displayTime.minutes}
                     </span>
                   </button>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 md:gap-3">
                     {[-1, 1, -5, 5].map((min) => (
                       <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />
                     ))}
@@ -458,7 +486,7 @@
                 </div>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-700 shadow-sm md:p-3">
                 <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
                   <button onClick={() => onLocationChange(MODES.OFFICE)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-bold transition-all ${locationMode === MODES.OFFICE ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                     <Building2 size={16} /> オフィス (10-15分)
@@ -714,7 +742,7 @@
           };
 
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 z-50">
               <div className="bg-white dark:bg-slate-800 w-[320px] rounded-3xl overflow-hidden shadow-2xl flex flex-col scale-110 md:scale-100">
                 <div className="bg-slate-800 p-8 flex flex-col items-center justify-center gap-2 relative">
                   <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
@@ -793,7 +821,7 @@
           };
 
           return (
-            <div className={`min-h-screen font-sans pb-20 transition-colors duration-200 ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
+            <div className={`min-h-screen font-sans pb-20 transition-colors duration-200 ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} md:flex md:h-screen md:overflow-hidden`}>
               <ClockTimePicker 
                 isOpen={isPickerOpen} 
                 initialTime={targetTime} 
@@ -802,47 +830,53 @@
                 isDarkMode={isDarkMode}
               />
 
-              <Header 
-                displayTime={getDisplayTime()}
-                isManualMode={isManualMode}
-                onResetTime={resetTime}
-                onAddMinutes={addMinutes}
-                locationMode={locationMode}
-                onLocationChange={setLocationMode}
-                onConfigClick={() => setShowConfig(!showConfig)}
-                onPickerClick={() => setIsPickerOpen(true)}
-                isDarkMode={isDarkMode}
-                toggleDarkMode={toggleDarkMode}
-              />
+              {/* 左カラム (PC時) / 上部ヘッダー (モバイル時) */}
+              <div className="md:w-96 md:flex-shrink-0 md:border-r md:border-slate-200 dark:md:border-slate-700 md:bg-white dark:md:bg-slate-900 md:flex md:flex-col md:justify-center z-20">
+                <Header 
+                  displayTime={getDisplayTime()}
+                  isManualMode={isManualMode}
+                  onResetTime={resetTime}
+                  onAddMinutes={addMinutes}
+                  locationMode={locationMode}
+                  onLocationChange={setLocationMode}
+                  onConfigClick={() => setShowConfig(!showConfig)}
+                  onPickerClick={() => setIsPickerOpen(true)}
+                  isDarkMode={isDarkMode}
+                  toggleDarkMode={toggleDarkMode}
+                />
+              </div>
 
-              <main className="max-w-md mx-auto p-4 space-y-6">
-                {showConfig && (
-                  <ConfigPanel 
-                    notionSecret={notionSecret} setNotionSecret={setNotionSecret}
-                    databaseId={databaseId} setDatabaseId={setDatabaseId}
-                    proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
-                    fetchNotionData={fetchNotionData} isLoading={isLoading}
-                    clearSettings={clearSettings}
-                  />
-                )}
+              {/* 右カラム (PC時) / メインコンテンツ (モバイル時) */}
+              <div className="md:flex-1 md:overflow-y-auto w-full">
+                <main className="max-w-md mx-auto p-4 space-y-6 md:max-w-4xl md:p-8">
+                  {showConfig && (
+                    <ConfigPanel 
+                      notionSecret={notionSecret} setNotionSecret={setNotionSecret}
+                      databaseId={databaseId} setDatabaseId={setDatabaseId}
+                      proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
+                      fetchNotionData={fetchNotionData} isLoading={isLoading}
+                      clearSettings={clearSettings}
+                    />
+                  )}
 
-                {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
+                  {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
 
-                {getSectionData().map((section, index) => (
-                  <TrainSection 
-                    key={index}
-                    title={section.title}
-                    icon={section.icon}
-                    items={section.items}
-                    type={section.type}
-                    badgeColor={section.badgeColor}
-                    badgeText={section.badgeText}
-                    isDarkMode={isDarkMode}
-                    locationMode={locationMode}
-                    sectionType={section.sectionType}
-                  />
-                ))}
-              </main>
+                  {getSectionData().map((section, index) => (
+                    <TrainSection 
+                      key={index}
+                      title={section.title}
+                      icon={section.icon}
+                      items={section.items}
+                      type={section.type}
+                      badgeColor={section.badgeColor}
+                      badgeText={section.badgeText}
+                      isDarkMode={isDarkMode}
+                      locationMode={locationMode}
+                      sectionType={section.sectionType}
+                    />
+                  ))}
+                </main>
+              </div>
             </div>
           );
         };
@@ -874,7 +908,7 @@
       // 2. Service Worker Injection
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE_NAME = 'justtrain-v4.2.0';
+          const CACHE_NAME = 'justtrain-v4.3.0';
           const URLS_TO_CACHE = [
             './',
             './index.html',
