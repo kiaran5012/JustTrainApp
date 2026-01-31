@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 5.1.1 (Backdrop Click to Confirm)
+  Version: 5.2.0 (Optimize Landscape for Mobile)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -72,10 +72,11 @@
         ::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.6); }
 
-        /* --- レスポンシブ調整 --- */
+        /* --- レスポンシブ調整: 閾値を上げて早めに切り替える --- */
+        /* 基準幅を 768px(md) から 640px(sm) に変更し、スマホ横画面に対応 */
 
         /* Level 1: 高さ 500px 以下 (タイトル移動) */
-        @media (min-width: 768px) and (max-height: 500px) {
+        @media (min-width: 640px) and (max-height: 500px) {
             .mq-hide-h-500 { display: none !important; }
             .mq-show-h-500-flex { display: flex !important; }
             .mq-left-pane-scroll {
@@ -89,13 +90,13 @@
         }
 
         /* Level 2: 高さ 415px 以下 (スイッチ移動) */
-        @media (min-width: 768px) and (max-height: 415px) {
+        @media (min-width: 640px) and (max-height: 415px) {
             .mq-hide-h-415 { display: none !important; }
             .mq-show-h-415 { display: block !important; }
         }
 
         /* 時刻ピッカー: 横長かつ縦狭のとき、ボタン位置を変更 */
-        @media (min-width: 768px) and (max-height: 500px) {
+        @media (min-width: 640px) and (max-height: 500px) {
             .picker-btns-right { display: none !important; }
             .picker-btns-left { display: flex !important; }
         }
@@ -304,7 +305,7 @@
             <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
               <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
               JustTrain
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.1.1</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.2.0</span>
             </h1>
             <div className="flex gap-2">
               <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -323,26 +324,25 @@
         );
 
         const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
-          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm md:static md:h-full md:border-none md:shadow-none md:flex md:flex-col md:justify-center md:w-full md:bg-transparent dark:md:bg-transparent mq-left-pane-scroll">
-            <div className="max-w-md mx-auto p-4 md:w-full md:max-w-full">
+          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm sm:static sm:h-full sm:border-none sm:shadow-none sm:flex sm:flex-col sm:justify-center sm:w-full sm:bg-transparent dark:sm:bg-transparent mq-left-pane-scroll">
+            <div className="max-w-md mx-auto p-4 sm:w-full sm:max-w-full">
               <AppTitle isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} onConfigClick={onConfigClick} className="mq-hide-h-500" />
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 md:mb-6 md:p-6">
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 sm:mb-6 sm:p-6">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}</span>
                   {isManualMode && <button onClick={onResetTime} className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline"><RotateCcw size={12} /> 現在時刻に戻す</button>}
                 </div>
-                {/* 修正: gap-2 -> gap-2 (縦画面用に狭くしたまま) */}
-                <div className="flex items-center justify-between gap-2 md:gap-4 md:flex-col md:items-stretch">
-                  <button onClick={onPickerClick} className="flex-1 md:flex-auto group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 md:justify-center md:py-4">
+                <div className="flex items-center justify-between gap-2 sm:gap-4 sm:flex-col sm:items-stretch">
+                  <button onClick={onPickerClick} className="flex-1 sm:flex-auto group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 sm:justify-center sm:py-4">
                     <Clock className={`w-8 h-8 ${isManualMode ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`} />
-                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} md:text-5xl`}>{displayTime.hours}:{displayTime.minutes}</span>
+                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} sm:text-5xl`}>{displayTime.hours}:{displayTime.minutes}</span>
                   </button>
-                  <div className="flex-1 md:flex-auto grid grid-cols-2 gap-2 md:gap-3">
+                  <div className="flex-1 sm:flex-auto grid grid-cols-2 gap-2 sm:gap-3">
                     {[-1, 1, -5, 5].map((min) => <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />)}
                   </div>
                 </div>
               </div>
-              <LocationSwitcher locationMode={locationMode} onLocationChange={onLocationChange} className="mq-hide-h-415 md:p-3" />
+              <LocationSwitcher locationMode={locationMode} onLocationChange={onLocationChange} className="mq-hide-h-415 sm:p-3" />
             </div>
           </header>
         );
@@ -580,7 +580,6 @@
                 onClick={(e) => e.stopPropagation()} 
               >
                 <div className="bg-slate-800 p-8 md:p-10 flex flex-col items-center justify-center gap-2 relative md:w-72 justify-between">
-                  {/* 時刻表示 */}
                   <div className="flex-1 flex flex-col items-center justify-center w-full">
                     <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
                     <div className="flex items-baseline gap-1 text-6xl font-mono font-bold text-white">
@@ -590,7 +589,6 @@
                     </div>
                   </div>
                   
-                  {/* 左側用ボタン (横長・縦狭時に表示) */}
                   <div className="picker-btns-left hidden w-full p-4 justify-end gap-4 border-t border-slate-700">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-400 hover:bg-slate-700 rounded-lg">キャンセル</button>
                     <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-400 hover:bg-slate-700 rounded-lg">OK</button>
@@ -611,7 +609,6 @@
                       {renderClockNumbers()}
                     </div>
                   </div>
-                  {/* 右側用ボタン (通常表示) */}
                   <div className="picker-btns-right p-4 flex justify-end items-center bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 gap-4">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">キャンセル</button>
                     <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg">OK</button>
@@ -672,7 +669,7 @@
             <div className={`
               h-[100dvh] w-full font-sans transition-colors duration-200 
               ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} 
-              flex flex-col md:flex-row overflow-hidden
+              flex flex-col sm:flex-row overflow-hidden
             `}>
               <ClockTimePicker 
                 isOpen={isPickerOpen} 
@@ -682,7 +679,8 @@
                 isDarkMode={isDarkMode}
               />
 
-              <div className="w-full md:w-96 flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col justify-center z-20 mq-left-pane-scroll relative">
+              {/* 左カラム (PC時) / 上部ヘッダー (モバイル時) */}
+              <div className="w-full sm:w-72 md:w-96 flex-shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col justify-center z-20 mq-left-pane-scroll relative">
                 <Header 
                   displayTime={getDisplayTime()}
                   isManualMode={isManualMode}
@@ -697,6 +695,7 @@
                 />
               </div>
 
+              {/* 右カラム (PC時) / メインコンテンツ (モバイル時) */}
               <div className="flex-1 w-full h-full overflow-y-auto overscroll-contain">
                 <main className="max-w-md mx-auto p-4 pb-24 space-y-6 md:max-w-4xl md:p-8 md:pb-16 h-full landscape-short-main">
                   
@@ -770,7 +769,7 @@
 
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE_NAME = 'justtrain-v5.1.1';
+          const CACHE_NAME = 'justtrain-v5.2.0';
           const URLS_TO_CACHE = [
             './',
             './index.html',
