@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 5.2.1 (Fix Responsive Breakpoints for Mobile Landscape)
+  Version: 5.3.0 (Add Loading Skeleton)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -72,8 +72,7 @@
         ::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.6); }
 
-        /* --- レスポンシブ調整: 閾値を上げて早めに切り替える --- */
-        /* 基準幅を 640px(sm) に統一 */
+        /* --- レスポンシブ調整 --- */
 
         /* Level 1: 高さ 500px 以下 (タイトル移動) */
         @media (min-width: 640px) and (max-height: 500px) {
@@ -271,6 +270,48 @@
           }, [rawItems, targetTime, locationMode]);
         };
 
+        // --- Loading Skeletons ---
+        const SkeletonCard = () => (
+          <div className="flex items-center p-3 bg-white dark:bg-slate-800 rounded-lg border-l-4 border-slate-200 dark:border-slate-700 animate-pulse mb-2 shadow-sm">
+            <div className="w-16 h-14 bg-slate-200 dark:bg-slate-700 rounded mr-4 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="flex justify-between">
+                <div className="h-8 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+              </div>
+            </div>
+          </div>
+        );
+
+        const SkeletonInfoRow = () => (
+          <div className="flex items-center px-3 py-2 bg-white dark:bg-slate-800 rounded-lg animate-pulse mb-1.5 shadow-sm">
+            <div className="w-1 h-8 bg-slate-300 dark:bg-slate-700 rounded-full mr-3" />
+            <div className="w-12 h-6 bg-slate-200 dark:bg-slate-700 rounded mr-2" />
+            <div className="flex-1 h-6 bg-slate-200 dark:bg-slate-700 rounded" />
+          </div>
+        );
+
+        const LoadingSkeleton = () => (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+            <div className="space-y-2">
+              <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+              <SkeletonInfoRow />
+              <SkeletonInfoRow />
+              <SkeletonInfoRow />
+            </div>
+          </div>
+        );
+
         // --- Components ---
 
         const ConfigPanel = ({ notionSecret, setNotionSecret, databaseId, setDatabaseId, proxyUrl, setProxyUrl, fetchNotionData, isLoading, clearSettings }) => (
@@ -293,39 +334,23 @@
           const isPlus = minutes > 0;
           const absMinutes = Math.abs(minutes);
           const isLarge = absMinutes === 5;
-          
           const baseClasses = "px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all shadow-sm w-full";
-          const lightClasses = isPlus 
-            ? (isLarge ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200" : "bg-blue-100 border border-blue-200 text-blue-700 hover:bg-blue-200")
-            : (isLarge ? "bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200" : "bg-rose-100 border border-rose-200 text-rose-700 hover:bg-rose-200");
-          
-          const darkClasses = isPlus
-            ? (isLarge ? "dark:bg-blue-800 dark:text-white dark:hover:bg-blue-700 dark:shadow-none" : "dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/50")
-            : (isLarge ? "dark:bg-rose-800 dark:text-white dark:hover:bg-rose-700 dark:shadow-none" : "dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/50");
-
+          const lightClasses = isPlus ? (isLarge ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200" : "bg-blue-100 border border-blue-200 text-blue-700 hover:bg-blue-200") : (isLarge ? "bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200" : "bg-rose-100 border border-rose-200 text-rose-700 hover:bg-rose-200");
+          const darkClasses = isPlus ? (isLarge ? "dark:bg-blue-800 dark:text-white dark:hover:bg-blue-700 dark:shadow-none" : "dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/50") : (isLarge ? "dark:bg-rose-800 dark:text-white dark:hover:bg-rose-700 dark:shadow-none" : "dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/50");
           const borderClass = isLarge ? "border border-transparent" : "";
-
-          return (
-            <button onClick={onClick} className={`${baseClasses} ${lightClasses} ${darkClasses} ${borderClass}`}>
-              {isPlus ? '+' : ''}{minutes}分
-            </button>
-          );
+          return <button onClick={onClick} className={`${baseClasses} ${lightClasses} ${darkClasses} ${borderClass}`}>{isPlus ? '+' : ''}{minutes}分</button>;
         };
 
         const AppTitle = ({ isDarkMode, toggleDarkMode, onConfigClick, className }) => (
-          <div className={`flex items-center justify-between mb-4 sm:mb-8 ${className}`}>
-            <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white sm:text-2xl">
-              <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 sm:w-8 sm:h-8" />
+          <div className={`flex items-center justify-between mb-4 md:mb-8 ${className}`}>
+            <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
+              <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
               JustTrain
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.2.1</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.3.0</span>
             </h1>
             <div className="flex gap-2">
-              <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button onClick={onConfigClick} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                <Settings size={20} />
-              </button>
+              <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
+              <button onClick={onConfigClick} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"><Settings size={20} /></button>
             </div>
           </div>
         );
@@ -340,29 +365,25 @@
         );
 
         const Header = ({ displayTime, isManualMode, onResetTime, onAddMinutes, locationMode, onLocationChange, onConfigClick, onPickerClick, isDarkMode, toggleDarkMode }) => (
-          <header className="
-            bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm
-            sm:static sm:h-full sm:border-none sm:shadow-none sm:flex sm:flex-col sm:justify-center sm:w-full sm:bg-transparent dark:sm:bg-transparent
-            mq-left-pane-scroll
-          ">
-            <div className="max-w-md mx-auto p-4 sm:w-full sm:max-w-full">
+          <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm md:static md:h-full md:border-none md:shadow-none md:flex md:flex-col md:justify-center md:w-full md:bg-transparent dark:md:bg-transparent mq-left-pane-scroll">
+            <div className="max-w-md mx-auto p-4 md:w-full md:max-w-full">
               <AppTitle isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} onConfigClick={onConfigClick} className="mq-hide-h-500" />
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 sm:mb-6 sm:p-6">
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm mb-3 md:mb-6 md:p-6">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">基準時刻 {isManualMode && <span className="text-amber-500">(MANUAL)</span>}</span>
                   {isManualMode && <button onClick={onResetTime} className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 hover:underline"><RotateCcw size={12} /> 現在時刻に戻す</button>}
                 </div>
-                <div className="flex items-center justify-between gap-2 sm:gap-4 sm:flex-col sm:items-stretch">
-                  <button onClick={onPickerClick} className="flex-1 sm:flex-auto group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 sm:justify-center sm:py-4">
+                <div className="flex items-center justify-between gap-2 md:gap-4 md:flex-col md:items-stretch">
+                  <button onClick={onPickerClick} className="flex-1 md:flex-auto group flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm hover:border-blue-400 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-100 dark:hover:ring-blue-900 transition-all active:scale-95 md:justify-center md:py-4">
                     <Clock className={`w-8 h-8 ${isManualMode ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`} />
-                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} sm:text-5xl`}>{displayTime.hours}:{displayTime.minutes}</span>
+                    <span className={`text-4xl font-mono font-bold tracking-tight ${isManualMode ? 'text-amber-600' : 'text-slate-800 dark:text-slate-100'} md:text-5xl`}>{displayTime.hours}:{displayTime.minutes}</span>
                   </button>
-                  <div className="flex-1 sm:flex-auto grid grid-cols-2 gap-2 sm:gap-3">
+                  <div className="flex-1 md:flex-auto grid grid-cols-2 gap-2 md:gap-3">
                     {[-1, 1, -5, 5].map((min) => <TimeControlButton key={min} minutes={min} onClick={() => onAddMinutes(min)} isDarkMode={isDarkMode} />)}
                   </div>
                 </div>
               </div>
-              <LocationSwitcher locationMode={locationMode} onLocationChange={onLocationChange} className="mq-hide-h-415 sm:p-3" />
+              <LocationSwitcher locationMode={locationMode} onLocationChange={onLocationChange} className="mq-hide-h-415 md:p-3" />
             </div>
           </header>
         );
@@ -388,7 +409,7 @@
                        <div className={`flex flex-col items-center justify-center h-14 px-2 rounded shadow-sm shrink-0 border ${s.departureBoxClass}`}>
                          <div className="flex items-baseline">
                            <span className="text-3xl font-bold tracking-tighter leading-none">{item.homeDepartureTime}</span>
-                           <span className="text-xs font-bold ml-0.5">出発</span>
+                           <span className="text-xs font-bold ml-0.5">退勤</span>
                          </div>
                        </div>
                      )}
@@ -429,7 +450,7 @@
                     <span className={`text-xs ml-0.5 ${s.text.sub}`}>分</span>
                   </div>
                   {locationMode === MODES.OFFICE && item.homeDepartureTime && (
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 font-mono ${s.infoDepartureBoxClass}`}>{item.homeDepartureTime}発</span>
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 font-mono ${s.infoDepartureBoxClass}`}>{item.homeDepartureTime}退勤</span>
                   )}
                   <span className={`text-xs font-medium truncate flex-1 ${s.text.dest}`}>{s.display.destination} 行</span>
                 </div>
@@ -596,11 +617,10 @@
               onClick={() => onTimeSet(selectedDate)} 
             >
               <div 
-                className="bg-white dark:bg-slate-900 w-[320px] sm:w-auto rounded-3xl overflow-hidden shadow-2xl flex flex-col sm:flex-row scale-110 sm:scale-100"
+                className="bg-white dark:bg-slate-900 w-[320px] md:w-auto rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row scale-110 md:scale-100"
                 onClick={(e) => e.stopPropagation()} 
               >
-                <div className="bg-slate-800 p-8 sm:p-10 flex flex-col items-center justify-center gap-2 relative sm:w-72 justify-between">
-                  {/* 時刻表示 */}
+                <div className="bg-slate-800 p-8 md:p-10 flex flex-col items-center justify-center gap-2 relative md:w-72 justify-between">
                   <div className="flex-1 flex flex-col items-center justify-center w-full">
                     <div className="flex items-end gap-2 text-slate-300 mb-2"><span className="text-xs font-medium uppercase tracking-wider">Select time</span></div>
                     <div className="flex items-baseline gap-1 text-6xl font-mono font-bold text-white">
@@ -610,7 +630,6 @@
                     </div>
                   </div>
                   
-                  {/* 左側用ボタン (横長・縦狭時に表示) */}
                   <div className="picker-btns-left hidden w-full p-4 justify-end gap-4 border-t border-slate-700">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-400 hover:bg-slate-700 rounded-lg">キャンセル</button>
                     <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-400 hover:bg-slate-700 rounded-lg">OK</button>
@@ -618,7 +637,7 @@
                 </div>
 
                 <div className="flex flex-col">
-                  <div className="p-6 sm:p-8 flex justify-center bg-slate-50 dark:bg-slate-900 flex-1 items-center">
+                  <div className="p-6 md:p-8 flex justify-center bg-slate-50 dark:bg-slate-900 flex-1 items-center">
                     <div ref={clockRef} className="relative rounded-full bg-slate-200 dark:bg-slate-800 cursor-pointer shadow-inner mx-auto touch-none" style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }} 
                       onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
                       <div className="absolute top-1/2 left-1/2 w-3 h-3 -ml-1.5 -mt-1.5 bg-blue-600 rounded-full z-10 pointer-events-none" />
@@ -631,7 +650,6 @@
                       {renderClockNumbers()}
                     </div>
                   </div>
-                  {/* 右側用ボタン (通常表示) */}
                   <div className="picker-btns-right p-4 flex justify-end items-center bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 gap-4">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">キャンセル</button>
                     <button onClick={() => onTimeSet(selectedDate)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg">OK</button>
@@ -720,9 +738,8 @@
 
               {/* 右カラム (PC時) / メインコンテンツ (モバイル時) */}
               <div className="flex-1 w-full h-full overflow-y-auto overscroll-contain">
-                <main className="max-w-md mx-auto p-4 pb-24 space-y-6 md:max-w-4xl md:p-8 md:pb-16 h-full landscape-short-main">
+                <main className="max-w-md mx-auto p-4 pb-6 space-y-6 md:max-w-4xl md:p-8 md:pb-16 h-full landscape-short-main">
                   
-                  {/* 高さ不足時の代替タイトル（普段はhidden） */}
                   <AppTitle 
                     isDarkMode={isDarkMode} 
                     toggleDarkMode={toggleDarkMode} 
@@ -740,29 +757,35 @@
                     />
                   )}
 
-                  {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
+                  {/* 修正: isLoadingがtrueの時はスケルトンを表示、falseなら実際のデータ */}
+                  {isLoading ? (
+                    <LoadingSkeleton />
+                  ) : (
+                    <>
+                      {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm">{error}</div>}
 
-                  {/* 場所切り替え（縦幅不足時はここにも表示） */}
-                  <LocationSwitcher 
-                    locationMode={locationMode} 
-                    onLocationChange={setLocationMode}
-                    className="hidden mq-show-h-415 mb-4"
-                  />
+                      <LocationSwitcher 
+                        locationMode={locationMode} 
+                        onLocationChange={setLocationMode}
+                        className="hidden mq-show-h-415 mb-4"
+                      />
 
-                  {getSectionData().map((section, index) => (
-                    <TrainSection 
-                      key={index}
-                      title={section.title}
-                      icon={section.icon}
-                      items={section.items}
-                      type={section.type}
-                      badgeColor={section.badgeColor}
-                      badgeText={section.badgeText}
-                      isDarkMode={isDarkMode}
-                      locationMode={locationMode}
-                      sectionType={section.sectionType}
-                    />
-                  ))}
+                      {getSectionData().map((section, index) => (
+                        <TrainSection 
+                          key={index}
+                          title={section.title}
+                          icon={section.icon}
+                          items={section.items}
+                          type={section.type}
+                          badgeColor={section.badgeColor}
+                          badgeText={section.badgeText}
+                          isDarkMode={isDarkMode}
+                          locationMode={locationMode}
+                          sectionType={section.sectionType}
+                        />
+                      ))}
+                    </>
+                  )}
                 </main>
               </div>
             </div>
@@ -794,7 +817,7 @@
 
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE_NAME = 'justtrain-v5.2.1';
+          const CACHE_NAME = 'justtrain-v5.3.0';
           const URLS_TO_CACHE = [
             './',
             './index.html',
