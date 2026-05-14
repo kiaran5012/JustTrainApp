@@ -104,6 +104,92 @@
 <body>
     <div id="root" style="height: 100%;"></div>
 
+    <!-- Diagnostic Script (remove after debugging) -->
+    <script>
+    (function() {
+      var diag = { errors: [], tw: {}, timing: {} };
+      diag.timing.start = Date.now();
+
+      // Capture all JS errors
+      window.addEventListener('error', function(e) {
+        diag.errors.push({
+          msg: e.message || 'unknown',
+          src: e.filename ? e.filename.split('/').pop() : '?',
+          line: e.lineno || '?',
+          time: Date.now() - diag.timing.start
+        });
+        updatePanel();
+      });
+
+      // Check Tailwind status periodically
+      function checkTailwind() {
+        diag.tw.objExists = typeof window.tailwind !== 'undefined';
+        diag.tw.configSet = !!(window.tailwind && window.tailwind.config);
+
+        // Count style tags injected by Tailwind
+        var styles = document.querySelectorAll('style');
+        diag.tw.styleTags = styles.length;
+        diag.tw.twStyles = 0;
+        diag.tw.totalCSSRules = 0;
+        for (var i = 0; i < styles.length; i++) {
+          try {
+            var rules = styles[i].sheet ? styles[i].sheet.cssRules.length : 0;
+            diag.tw.totalCSSRules += rules;
+            var text = styles[i].textContent || '';
+            if (rules > 50 || text.indexOf('.flex') !== -1 || text.indexOf('.bg-') !== -1) {
+              diag.tw.twStyles++;
+            }
+          } catch(e) {}
+        }
+
+        // Check if a test class resolves
+        var testEl = document.createElement('div');
+        testEl.className = 'flex';
+        testEl.style.cssText = 'position:absolute;visibility:hidden;';
+        document.body.appendChild(testEl);
+        var cs = getComputedStyle(testEl);
+        diag.tw.flexWorks = cs.display === 'flex';
+        document.body.removeChild(testEl);
+      }
+
+      function updatePanel() {
+        var p = document.getElementById('tw-diag-panel');
+        if (!p) return;
+        checkTailwind();
+        var status = diag.tw.flexWorks ? '✅ OK' : '❌ NG';
+        var html = '<b>TW Diag</b> | flex=' + status + '<br>'
+          + 'tw obj=' + diag.tw.objExists + ' | config=' + diag.tw.configSet + '<br>'
+          + 'styleTags=' + diag.tw.styleTags + ' | twStyles=' + diag.tw.twStyles + ' | rules=' + diag.tw.totalCSSRules + '<br>'
+          + 'UA=' + navigator.userAgent.substring(0, 80) + '<br>';
+        if (diag.errors.length > 0) {
+          html += '<b style="color:#f87171">Errors(' + diag.errors.length + '):</b><br>';
+          diag.errors.forEach(function(e) {
+            html += '[' + e.time + 'ms] ' + e.src + ':' + e.line + ' ' + e.msg.substring(0, 100) + '<br>';
+          });
+        } else {
+          html += 'Errors: none<br>';
+        }
+        p.innerHTML = html;
+      }
+
+      // Create panel
+      window.addEventListener('DOMContentLoaded', function() {
+        var panel = document.createElement('div');
+        panel.id = 'tw-diag-panel';
+        panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.9);color:#e2e8f0;font:11px/1.4 monospace;padding:8px 12px;max-height:40vh;overflow-y:auto;border-top:2px solid #f59e0b;';
+        panel.onclick = function() { panel.style.display = 'none'; };
+        document.body.appendChild(panel);
+
+        // Check at multiple intervals to catch timing issues
+        setTimeout(updatePanel, 500);
+        setTimeout(updatePanel, 1500);
+        setTimeout(updatePanel, 3000);
+        setTimeout(updatePanel, 5000);
+        setTimeout(updatePanel, 10000);
+      });
+    })();
+    </script>
+
     <!-- Main Application Code -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
