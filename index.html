@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 5.3.1 (Add Retry Button to Error Message)
+  Version: 5.4.0 (fix Tailwind CSS)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -21,21 +21,27 @@
     <meta name="description" content="Notion連携型スマート時刻表アプリ">
 
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        // 1. 必ずCDNの「前」に設定を書く
+        // 2. 動的クラスのためにsafelistを追加
         tailwind.config = {
             darkMode: 'class',
+            safelist: [
+                { pattern: /bg-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(100|600|700|900)/ },
+                { pattern: /text-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(100|200|800)/ },
+                { pattern: /border-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(200|600|700)/ }
+            ],
             theme: {
                 extend: {
                     colors: {
-                        slate: {
-                            950: '#020617',
-                        }
+                        slate: { 950: '#020617' }
                     }
                 }
             }
         }
     </script>
+    <!-- 3. バージョンを固定する -->
+    <script src="https://cdn.tailwindcss.com/3.4.3"></script>
 
     <!-- Import Map for React modules -->
     <script type="importmap">
