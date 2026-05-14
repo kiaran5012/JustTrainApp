@@ -352,7 +352,7 @@
             <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
               <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
               JustTrain
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.0</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.1</span>
             </h1>
             <div className="flex gap-2">
               <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -832,58 +832,21 @@
       const manifestURL = URL.createObjectURL(manifestBlob);
       document.getElementById('manifest-link').href = manifestURL;
 
+      // --- 🚨 暴走したService Workerとキャッシュの強制削除処理 🚨 ---
       if ('serviceWorker' in navigator) {
-        const swCode = `
-          const CACHE_NAME = 'justtrain-v5.4.0';
-          const URLS_TO_CACHE = [
-            './',
-            './index.html',
-            './icon-32.png',
-            './icon-180.png',
-            './icon-192.png',
-            './icon-512.png',
-            'https://cdn.tailwindcss.com',
-            'https://esm.sh/react@18.2.0',
-            'https://esm.sh/react-dom@18.2.0/client',
-            'https://esm.sh/lucide-react@0.263.1',
-            'https://unpkg.com/@babel/standalone@7.23.9/babel.min.js'
-          ];
-
-          self.addEventListener('install', (event) => {
-            self.skipWaiting();
-            event.waitUntil(
-              caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE))
-            );
-          });
-
-          self.addEventListener('fetch', (event) => {
-            event.respondWith(
-              caches.match(event.request).then((response) => response || fetch(event.request))
-            );
-          });
-
-          self.addEventListener('activate', (event) => {
-            const cacheWhitelist = [CACHE_NAME];
-            event.waitUntil(
-              caches.keys().then((cacheNames) => {
-                return Promise.all(
-                  cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                      return caches.delete(cacheName);
-                    }
-                  })
-                );
-              })
-            );
-          });
-        `;
-
-        const swBlob = new Blob([swCode], {type: 'application/javascript'});
-        const swURL = URL.createObjectURL(swBlob);
-
-        navigator.serviceWorker.register(swURL)
-          .then(registration => console.log('SW registered'))
-          .catch(err => console.log('SW registration failed: ', err));
+        // 1. 登録されている全てのService Workerを強制解除
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister().then(() => console.log('Old SW Unregistered'));
+          }
+        });
+        
+        // 2. 蓄積された全ての不正キャッシュを強制クリア
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
       }
     </script>
 </body>
