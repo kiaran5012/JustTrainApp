@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 5.4.2 (Fix mobile layout / SW cache strategy)
+  Version: 5.4.3 (Self-host Tailwind to avoid ad-blocker interference)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -20,8 +20,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="description" content="Notion連携型スマート時刻表アプリ">
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com/3.4.1" onload="window.__twLoaded=true" onerror="window.__twError=true"></script>
+    <!-- Tailwind CSS (self-hosted to avoid ad-blocker interference) -->
+    <script src="tailwind.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -103,103 +103,6 @@
 </head>
 <body>
     <div id="root" style="height: 100%;"></div>
-
-    <!-- Diagnostic Script (remove after debugging) -->
-    <script>
-    (function() {
-      var diag = { errors: [], tw: {}, timing: {}, fetch: {} };
-      diag.timing.start = Date.now();
-
-      window.addEventListener('error', function(e) {
-        diag.errors.push({
-          msg: e.message || 'unknown',
-          src: e.filename ? e.filename.split('/').pop() : '?',
-          line: e.lineno || '?',
-          time: Date.now() - diag.timing.start
-        });
-        updatePanel();
-      });
-
-      function checkTailwind() {
-        diag.tw.objExists = typeof window.tailwind !== 'undefined';
-        diag.tw.configSet = !!(window.tailwind && window.tailwind.config);
-        diag.tw.scriptOnload = !!window.__twLoaded;
-        diag.tw.scriptOnerror = !!window.__twError;
-        var styles = document.querySelectorAll('style');
-        diag.tw.styleTags = styles.length;
-        diag.tw.twStyles = 0;
-        diag.tw.totalCSSRules = 0;
-        for (var i = 0; i < styles.length; i++) {
-          try {
-            var rules = styles[i].sheet ? styles[i].sheet.cssRules.length : 0;
-            diag.tw.totalCSSRules += rules;
-            if (rules > 50) diag.tw.twStyles++;
-          } catch(e) {}
-        }
-        var testEl = document.createElement('div');
-        testEl.className = 'flex';
-        testEl.style.cssText = 'position:absolute;visibility:hidden;';
-        document.body.appendChild(testEl);
-        diag.tw.flexWorks = getComputedStyle(testEl).display === 'flex';
-        document.body.removeChild(testEl);
-      }
-
-      function updatePanel() {
-        var p = document.getElementById('tw-diag-panel');
-        if (!p) return;
-        checkTailwind();
-        var s = diag.tw.flexWorks ? '✅' : '❌';
-        var html = '<b>TW Diag v2</b> flex=' + s + '<br>'
-          + 'twObj=' + diag.tw.objExists + ' cfg=' + diag.tw.configSet + '<br>'
-          + 'scriptLoad=' + diag.tw.scriptOnload + ' scriptErr=' + diag.tw.scriptOnerror + '<br>'
-          + 'styles=' + diag.tw.styleTags + ' twCSS=' + diag.tw.twStyles + ' rules=' + diag.tw.totalCSSRules + '<br>';
-        if (diag.fetch.status) {
-          html += '<b style="color:#60a5fa">Fetch test:</b> ' + diag.fetch.status + ' type=' + diag.fetch.type + '<br>'
-            + 'size=' + diag.fetch.size + ' first80=' + diag.fetch.first80 + '<br>';
-        } else if (diag.fetch.error) {
-          html += '<b style="color:#f87171">Fetch err:</b> ' + diag.fetch.error + '<br>';
-        } else {
-          html += 'Fetch: pending...<br>';
-        }
-        html += 'SW=' + (navigator.serviceWorker ? (navigator.serviceWorker.controller ? 'active' : 'no-ctrl') : 'unsupported') + '<br>';
-        if (diag.errors.length > 0) {
-          html += '<b style="color:#f87171">Errors(' + diag.errors.length + '):</b><br>';
-          diag.errors.slice(0,5).forEach(function(e) {
-            html += '[' + e.time + 'ms] ' + e.src + ':' + e.line + ' ' + e.msg.substring(0, 80) + '<br>';
-          });
-        } else {
-          html += 'JS Errors: none<br>';
-        }
-        p.innerHTML = html;
-      }
-
-      window.addEventListener('DOMContentLoaded', function() {
-        var panel = document.createElement('div');
-        panel.id = 'tw-diag-panel';
-        panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.92);color:#e2e8f0;font:11px/1.5 monospace;padding:8px 12px;max-height:45vh;overflow-y:auto;border-top:2px solid #f59e0b;';
-        panel.onclick = function() { panel.style.display = 'none'; };
-        document.body.appendChild(panel);
-
-        // Fetch CDN independently to check response
-        fetch('https://cdn.tailwindcss.com/3.4.1').then(function(r) {
-          diag.fetch.status = r.status;
-          diag.fetch.type = r.headers.get('content-type') || '?';
-          return r.text();
-        }).then(function(t) {
-          diag.fetch.size = t.length;
-          diag.fetch.first80 = t.substring(0, 80).replace(/</g, '&lt;');
-          updatePanel();
-        }).catch(function(e) {
-          diag.fetch.error = e.message;
-          updatePanel();
-        });
-
-        setTimeout(updatePanel, 500);
-        setTimeout(updatePanel, 2000);
-        setTimeout(updatePanel, 5000);
-      });
-    })();
-    </script>
 
     <!-- Main Application Code -->
     <script type="text/babel" data-type="module">
@@ -443,7 +346,7 @@
             <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
               <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
               JustTrain
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.2</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.3</span>
             </h1>
             <div className="flex gap-2">
               <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -925,7 +828,7 @@
 
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE_NAME = 'justtrain-v5.4.2';
+          const CACHE_NAME = 'justtrain-v5.4.3';
           const URLS_TO_CACHE = [
             './',
             './index.html',
@@ -933,7 +836,7 @@
             './icon-180.png',
             './icon-192.png',
             './icon-512.png',
-            'https://cdn.tailwindcss.com/3.4.1',
+            './tailwind.js',
             'https://esm.sh/react@18.2.0',
             'https://esm.sh/react-dom@18.2.0/client',
             'https://esm.sh/lucide-react@0.263.1',
