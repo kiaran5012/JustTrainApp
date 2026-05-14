@@ -1,6 +1,6 @@
 <!--
   JustTrain
-  Version: 5.4.0 (fix Tailwind CSS)
+  Version: 5.4.2 (Fix mobile layout / SW cache strategy)
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -21,27 +21,21 @@
     <meta name="description" content="Notion連携型スマート時刻表アプリ">
 
     <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <script>
-        // 1. 必ずCDNの「前」に設定を書く
-        // 2. 動的クラスのためにsafelistを追加
         tailwind.config = {
             darkMode: 'class',
-            safelist: [
-                { pattern: /bg-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(100|600|700|900)/ },
-                { pattern: /text-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(100|200|800)/ },
-                { pattern: /border-(slate|amber|orange|yellow|emerald|blue|purple|pink|rose)-(200|600|700)/ }
-            ],
             theme: {
                 extend: {
                     colors: {
-                        slate: { 950: '#020617' }
+                        slate: {
+                            950: '#020617',
+                        }
                     }
                 }
             }
         }
     </script>
-    <!-- 3. バージョンを固定する -->
-    <script src="https://cdn.tailwindcss.com/3.4.3"></script>
 
     <!-- Import Map for React modules -->
     <script type="importmap">
@@ -352,7 +346,7 @@
             <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white md:text-2xl">
               <Train className="text-blue-600 dark:text-blue-400 w-6 h-6 md:w-8 md:h-8" />
               JustTrain
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.1</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2 pt-1">v5.4.2</span>
             </h1>
             <div className="flex gap-2">
               <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -832,21 +826,69 @@
       const manifestURL = URL.createObjectURL(manifestBlob);
       document.getElementById('manifest-link').href = manifestURL;
 
-      // --- 🚨 暴走したService Workerとキャッシュの強制削除処理 🚨 ---
       if ('serviceWorker' in navigator) {
-        // 1. 登録されている全てのService Workerを強制解除
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister().then(() => console.log('Old SW Unregistered'));
-          }
-        });
-        
-        // 2. 蓄積された全ての不正キャッシュを強制クリア
-        caches.keys().then(function(names) {
-          for (let name of names) {
-            caches.delete(name);
-          }
-        });
+        const swCode = `
+          const CACHE_NAME = 'justtrain-v5.4.2';
+          const URLS_TO_CACHE = [
+            './',
+            './index.html',
+            './icon-32.png',
+            './icon-180.png',
+            './icon-192.png',
+            './icon-512.png',
+            'https://cdn.tailwindcss.com/3.4.1',
+            'https://esm.sh/react@18.2.0',
+            'https://esm.sh/react-dom@18.2.0/client',
+            'https://esm.sh/lucide-react@0.263.1',
+            'https://unpkg.com/@babel/standalone@7.23.9/babel.min.js'
+          ];
+
+          self.addEventListener('install', (event) => {
+            self.skipWaiting();
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE))
+            );
+          });
+
+          self.addEventListener('fetch', (event) => {
+            const url = new URL(event.request.url);
+            if (url.origin !== location.origin) {
+              event.respondWith(
+                fetch(event.request).then(res => {
+                  const clone = res.clone();
+                  caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+                  return res;
+                }).catch(() => caches.match(event.request))
+              );
+              return;
+            }
+            event.respondWith(
+              caches.match(event.request).then(res => res || fetch(event.request))
+            );
+          });
+
+          self.addEventListener('activate', (event) => {
+            const cacheWhitelist = [CACHE_NAME];
+            event.waitUntil(
+              caches.keys().then((cacheNames) => {
+                return Promise.all(
+                  cacheNames.map((cacheName) => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                      return caches.delete(cacheName);
+                    }
+                  })
+                );
+              })
+            );
+          });
+        `;
+
+        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        const swURL = URL.createObjectURL(swBlob);
+
+        navigator.serviceWorker.register(swURL)
+          .then(registration => console.log('SW registered'))
+          .catch(err => console.log('SW registration failed: ', err));
       }
     </script>
 </body>
