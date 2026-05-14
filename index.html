@@ -21,7 +21,7 @@
     <meta name="description" content="Notion連携型スマート時刻表アプリ">
 
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.1" onload="window.__twLoaded=true" onerror="window.__twError=true"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -107,10 +107,9 @@
     <!-- Diagnostic Script (remove after debugging) -->
     <script>
     (function() {
-      var diag = { errors: [], tw: {}, timing: {} };
+      var diag = { errors: [], tw: {}, timing: {}, fetch: {} };
       diag.timing.start = Date.now();
 
-      // Capture all JS errors
       window.addEventListener('error', function(e) {
         diag.errors.push({
           msg: e.message || 'unknown',
@@ -121,12 +120,11 @@
         updatePanel();
       });
 
-      // Check Tailwind status periodically
       function checkTailwind() {
         diag.tw.objExists = typeof window.tailwind !== 'undefined';
         diag.tw.configSet = !!(window.tailwind && window.tailwind.config);
-
-        // Count style tags injected by Tailwind
+        diag.tw.scriptOnload = !!window.__twLoaded;
+        diag.tw.scriptOnerror = !!window.__twError;
         var styles = document.querySelectorAll('style');
         diag.tw.styleTags = styles.length;
         diag.tw.twStyles = 0;
@@ -135,20 +133,14 @@
           try {
             var rules = styles[i].sheet ? styles[i].sheet.cssRules.length : 0;
             diag.tw.totalCSSRules += rules;
-            var text = styles[i].textContent || '';
-            if (rules > 50 || text.indexOf('.flex') !== -1 || text.indexOf('.bg-') !== -1) {
-              diag.tw.twStyles++;
-            }
+            if (rules > 50) diag.tw.twStyles++;
           } catch(e) {}
         }
-
-        // Check if a test class resolves
         var testEl = document.createElement('div');
         testEl.className = 'flex';
         testEl.style.cssText = 'position:absolute;visibility:hidden;';
         document.body.appendChild(testEl);
-        var cs = getComputedStyle(testEl);
-        diag.tw.flexWorks = cs.display === 'flex';
+        diag.tw.flexWorks = getComputedStyle(testEl).display === 'flex';
         document.body.removeChild(testEl);
       }
 
@@ -156,36 +148,55 @@
         var p = document.getElementById('tw-diag-panel');
         if (!p) return;
         checkTailwind();
-        var status = diag.tw.flexWorks ? '✅ OK' : '❌ NG';
-        var html = '<b>TW Diag</b> | flex=' + status + '<br>'
-          + 'tw obj=' + diag.tw.objExists + ' | config=' + diag.tw.configSet + '<br>'
-          + 'styleTags=' + diag.tw.styleTags + ' | twStyles=' + diag.tw.twStyles + ' | rules=' + diag.tw.totalCSSRules + '<br>'
-          + 'UA=' + navigator.userAgent.substring(0, 80) + '<br>';
+        var s = diag.tw.flexWorks ? '✅' : '❌';
+        var html = '<b>TW Diag v2</b> flex=' + s + '<br>'
+          + 'twObj=' + diag.tw.objExists + ' cfg=' + diag.tw.configSet + '<br>'
+          + 'scriptLoad=' + diag.tw.scriptOnload + ' scriptErr=' + diag.tw.scriptOnerror + '<br>'
+          + 'styles=' + diag.tw.styleTags + ' twCSS=' + diag.tw.twStyles + ' rules=' + diag.tw.totalCSSRules + '<br>';
+        if (diag.fetch.status) {
+          html += '<b style="color:#60a5fa">Fetch test:</b> ' + diag.fetch.status + ' type=' + diag.fetch.type + '<br>'
+            + 'size=' + diag.fetch.size + ' first80=' + diag.fetch.first80 + '<br>';
+        } else if (diag.fetch.error) {
+          html += '<b style="color:#f87171">Fetch err:</b> ' + diag.fetch.error + '<br>';
+        } else {
+          html += 'Fetch: pending...<br>';
+        }
+        html += 'SW=' + (navigator.serviceWorker ? (navigator.serviceWorker.controller ? 'active' : 'no-ctrl') : 'unsupported') + '<br>';
         if (diag.errors.length > 0) {
           html += '<b style="color:#f87171">Errors(' + diag.errors.length + '):</b><br>';
-          diag.errors.forEach(function(e) {
-            html += '[' + e.time + 'ms] ' + e.src + ':' + e.line + ' ' + e.msg.substring(0, 100) + '<br>';
+          diag.errors.slice(0,5).forEach(function(e) {
+            html += '[' + e.time + 'ms] ' + e.src + ':' + e.line + ' ' + e.msg.substring(0, 80) + '<br>';
           });
         } else {
-          html += 'Errors: none<br>';
+          html += 'JS Errors: none<br>';
         }
         p.innerHTML = html;
       }
 
-      // Create panel
       window.addEventListener('DOMContentLoaded', function() {
         var panel = document.createElement('div');
         panel.id = 'tw-diag-panel';
-        panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.9);color:#e2e8f0;font:11px/1.4 monospace;padding:8px 12px;max-height:40vh;overflow-y:auto;border-top:2px solid #f59e0b;';
+        panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.92);color:#e2e8f0;font:11px/1.5 monospace;padding:8px 12px;max-height:45vh;overflow-y:auto;border-top:2px solid #f59e0b;';
         panel.onclick = function() { panel.style.display = 'none'; };
         document.body.appendChild(panel);
 
-        // Check at multiple intervals to catch timing issues
+        // Fetch CDN independently to check response
+        fetch('https://cdn.tailwindcss.com/3.4.1').then(function(r) {
+          diag.fetch.status = r.status;
+          diag.fetch.type = r.headers.get('content-type') || '?';
+          return r.text();
+        }).then(function(t) {
+          diag.fetch.size = t.length;
+          diag.fetch.first80 = t.substring(0, 80).replace(/</g, '&lt;');
+          updatePanel();
+        }).catch(function(e) {
+          diag.fetch.error = e.message;
+          updatePanel();
+        });
+
         setTimeout(updatePanel, 500);
-        setTimeout(updatePanel, 1500);
-        setTimeout(updatePanel, 3000);
+        setTimeout(updatePanel, 2000);
         setTimeout(updatePanel, 5000);
-        setTimeout(updatePanel, 10000);
       });
     })();
     </script>
